@@ -7,15 +7,16 @@ import (
 )
 
 type distributorChannels struct {
-	events     chan<- Event
-	ioCommand  chan<- ioCommand
-	ioIdle     <-chan bool
-	ioFilename chan<- string
-	ioOutput   chan<- uint8
-	ioInput    <-chan uint8
+	events         chan<- Event
+	ioCommand      chan<- ioCommand
+	ioIdle         <-chan bool
+	ioFilename     chan<- string
+	ioOutput       chan<- uint8
+	ioInput        <-chan uint8
+	keyPressesChan <-chan rune
 }
 
-func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int) {
+func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int, fileName string) {
 	for {
 		select {
 		case <-ticker.C:
@@ -23,6 +24,43 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 			response := new(TickerResponse)
 			client.Call(tickerService, request, response)
 			c.events <- AliveCellsCount{response.CompletedTurns, response.AliveCellsCount}
+
+		case keyPress := <-c.keyPressesChan:
+			switch keyPress {
+			case 'q':
+				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+				response := new(WorkerResponse)
+				client.Call(quitter, request, response)
+				// Need to add something here to deal with logic on client side
+				// c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}
+				// outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
+				// c.ioCommand <- ioOutput
+				// c.ioFilename <- outputFileName
+				// for i := range response.World {
+				// 	for j := 0; j < w; j++ {
+				// 		c.ioOutput <- response.World[i][j]
+				// 	}
+				// }
+				// c.ioCommand <- ioCheckIdle
+				// c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
+				// c.events <- StateChange{response.CompletedTurns, Quitting}
+
+				// Need to add something here to deal with logic on client side
+			case 'p':
+				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+				response := new(WorkerResponse)
+				client.Call(pauser, request, response)
+				// Need to add something here to deal with logic on client side
+			case 's':
+				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+				response := new(WorkerResponse)
+				client.Call(saver, request, response)
+				// Need to add something here to deal with logic on client side
+			case 'k':
+				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+				response := new(WorkerResponse)
+				client.Call(killer, request, response)
+			}
 		case <-done:
 			return
 		}
@@ -40,7 +78,6 @@ func distributor(p Params, c distributorChannels) {
 	h := p.ImageHeight
 	w := p.ImageWidth
 	fileName := strconv.Itoa(h) + "x" + strconv.Itoa(w)
-	outputFileName := fileName + "x" + strconv.Itoa(p.Turns)
 
 	// Initialise 2D slice to store world
 	world := make([][]uint8, h)
@@ -59,7 +96,6 @@ func distributor(p Params, c distributorChannels) {
 
 	}
 
-	turn := 0
 	done := make(chan bool)
 	ticker := time.NewTicker(2 * time.Second)
 
@@ -76,12 +112,15 @@ func distributor(p Params, c distributorChannels) {
 	request := WorkerRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
 	response := new(WorkerResponse)
 
-	go handleTicker(ticker, done, client, c, h, w)
+	go handleTicker(ticker, done, client, c, h, w, fileName)
 	client.Call(loop, request, response)
-
-	// fmt.Println("found ehre")
+	// c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
+	// c.events <- StateChange{response.CompletedTurns, Quitting}
 	world = response.World
 
+	c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}
+
+	outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
 	c.ioCommand <- ioOutput
 	c.ioFilename <- outputFileName
 	for i := range world {
@@ -90,15 +129,13 @@ func distributor(p Params, c distributorChannels) {
 		}
 	}
 
-	// TODO: Report the final state using FinalTurnCompleteEvent.
-	c.events <- FinalTurnComplete{p.Turns, response.AliveCells}
 	ticker.Stop()
 	done <- true
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
-
-	c.events <- StateChange{turn, Quitting}
+	c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
+	c.events <- StateChange{response.CompletedTurns, Quitting}
 
 	// Close the channel to stop the SDL goroutine gracefully. Removing may cause deadlock.
 	close(c.events)

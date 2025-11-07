@@ -19,10 +19,12 @@ type GameOfLife struct {
 
 var globalWorld [][]uint8
 var globalTurn int
+var quitting bool
 var mu sync.Mutex
 
 // Calculate a certain number of game of life states
 func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerResponse) (err error) {
+	quitting = false
 	turn := 0
 	world := request.World
 	mu.Lock()
@@ -30,13 +32,14 @@ func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerRespo
 	globalWorld = world
 	mu.Unlock()
 
-	for turn < request.Turns {
+	for turn < request.Turns && !quitting {
 		world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, request.H, world)
 		turn += 1
 		mu.Lock()
 		globalTurn = turn
 		globalWorld = world
 		mu.Unlock()
+		response.CompletedTurns = turn
 	}
 
 	response.World = world
@@ -48,6 +51,19 @@ func (Game GameOfLife) TickerService(request gol.TickerRequest, response *gol.Ti
 	mu.Lock()
 	// fmt.Println(Game.world)
 	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld))
+	response.CompletedTurns = globalTurn
+	mu.Unlock()
+	return
+
+}
+
+func (Game GameOfLife) Quitter(request gol.WorkerRequest, response *gol.WorkerResponse) (err error) {
+	mu.Lock()
+	quitting = true
+	mu.Unlock()
+	mu.Lock()
+	response.World = globalWorld
+	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
 	response.CompletedTurns = globalTurn
 	mu.Unlock()
 	return
