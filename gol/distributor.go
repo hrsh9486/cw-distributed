@@ -1,7 +1,6 @@
 package gol
 
 import (
-	"fmt"
 	"net/rpc"
 	"strconv"
 	"time"
@@ -80,7 +79,7 @@ func distributor(p Params, c distributorChannels) {
 	go handleTicker(ticker, done, client, c, h, w)
 	client.Call(loop, request, response)
 
-	fmt.Println("found ehre")
+	// fmt.Println("found ehre")
 	world = response.World
 
 	c.ioCommand <- ioOutput

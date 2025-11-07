@@ -6,25 +6,37 @@ import (
 	"math/rand"
 	"net"
 	"net/rpc"
+	"sync"
 	"time"
 
 	"uk.ac.bris.cs/gameoflife/gol"
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
-type GameOfLife struct{}
+// Need a mutex lock on world and turn
+type GameOfLife struct {
+}
 
-var world [][]uint8
-var turn int
+var globalWorld [][]uint8
+var globalTurn int
+var mu sync.Mutex
 
 // Calculate a certain number of game of life states
 func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerResponse) (err error) {
-	turn = 0
-	world = request.World
-	fmt.Println("We're not faking it")
+	turn := 0
+	world := request.World
+	mu.Lock()
+	globalTurn = 0
+	globalWorld = world
+	mu.Unlock()
+
 	for turn < request.Turns {
 		world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, request.H, world)
 		turn += 1
+		mu.Lock()
+		globalTurn = turn
+		globalWorld = world
+		mu.Unlock()
 	}
 
 	response.World = world
@@ -33,9 +45,11 @@ func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerRespo
 }
 
 func (Game GameOfLife) TickerService(request gol.TickerRequest, response *gol.TickerResponse) (err error) {
-	fmt.Println("Inside her")
-	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, world))
-	response.CompletedTurns = turn
+	mu.Lock()
+	// fmt.Println(Game.world)
+	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld))
+	response.CompletedTurns = globalTurn
+	mu.Unlock()
 	return
 }
 
