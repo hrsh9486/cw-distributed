@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"math/rand"
 	"net"
 	"net/rpc"
@@ -13,11 +14,14 @@ import (
 
 type GameOfLife struct{}
 
-// Calculate a certain number of game of life states
-func (Game GameOfLife) Loop(request gol.Request, response *gol.Response) (err error) {
-	turn := 0
-	world := request.World
+var world [][]uint8
+var turn int
 
+// Calculate a certain number of game of life states
+func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerResponse) (err error) {
+	turn = 0
+	world = request.World
+	fmt.Println("We're not faking it")
 	for turn < request.Turns {
 		world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, request.H, world)
 		turn += 1
@@ -25,6 +29,13 @@ func (Game GameOfLife) Loop(request gol.Request, response *gol.Response) (err er
 
 	response.World = world
 	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, world)
+	return
+}
+
+func (Game GameOfLife) TickerService(request gol.TickerRequest, response *gol.TickerResponse) (err error) {
+	fmt.Println("Inside her")
+	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, world))
+	response.CompletedTurns = turn
 	return
 }
 
@@ -94,6 +105,7 @@ func getAliveCells(h, w int, world [][]uint8) []util.Cell {
 }
 
 func main() {
+	fmt.Println("Listening for a connection...")
 	pAddr := flag.String("port", "8030", "The port the server is listening on")
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())

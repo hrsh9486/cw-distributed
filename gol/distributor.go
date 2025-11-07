@@ -1,8 +1,10 @@
 package gol
 
 import (
+	"fmt"
 	"net/rpc"
 	"strconv"
+	"time"
 )
 
 type distributorChannels struct {
@@ -12,6 +14,22 @@ type distributorChannels struct {
 	ioFilename chan<- string
 	ioOutput   chan<- uint8
 	ioInput    <-chan uint8
+}
+
+func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int) {
+	for {
+		select {
+		case <-ticker.C:
+			request := TickerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+			response := new(TickerResponse)
+			client.Call(tickerService, request, response)
+			c.events <- AliveCellsCount{response.CompletedTurns, response.AliveCellsCount}
+		case <-done:
+			return
+		}
+	}
+	// call the ticker every 2 seconds
+	// use the rpc ticker thingy
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
@@ -43,6 +61,9 @@ func distributor(p Params, c distributorChannels) {
 	}
 
 	turn := 0
+	done := make(chan bool)
+	ticker := time.NewTicker(2 * time.Second)
+
 	c.events <- StateChange{0, Executing}
 	// TODO: Execute all turns of the Game of Life.
 	// server := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
@@ -53,9 +74,13 @@ func distributor(p Params, c distributorChannels) {
 	client, _ := rpc.Dial("tcp", server)
 	defer client.Close()
 
-	request := Request{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
-	response := new(Response)
+	request := WorkerRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
+	response := new(WorkerResponse)
+
+	go handleTicker(ticker, done, client, c, h, w)
 	client.Call(loop, request, response)
+
+	fmt.Println("found ehre")
 	world = response.World
 
 	c.ioCommand <- ioOutput
@@ -68,7 +93,8 @@ func distributor(p Params, c distributorChannels) {
 
 	// TODO: Report the final state using FinalTurnCompleteEvent.
 	c.events <- FinalTurnComplete{p.Turns, response.AliveCells}
-
+	ticker.Stop()
+	done <- true
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
 	<-c.ioIdle
