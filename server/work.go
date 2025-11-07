@@ -35,8 +35,6 @@ func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerRespo
 	mu.Unlock()
 
 	for turn < request.Turns && !quitting {
-		for !pausing && !quitting {
-		}
 		world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, request.H, world)
 		turn += 1
 		mu.Lock()
@@ -73,7 +71,7 @@ func (Game GameOfLife) Quitter(request gol.WorkerRequest, response *gol.WorkerRe
 	return
 }
 
-func (Game GameOfLife) Pauser(reqeust gol.WorkerRequest, response *gol.WorkerResponse) (err error) {
+func (Game GameOfLife) Pauser(request gol.PauserRequest, response *gol.PauserResponse) (err error) {
 	mu.Lock()
 	pausing = !pausing
 	response.CompletedTurns = globalTurn
@@ -129,6 +127,8 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 		}
 	}
 
+	for pausing && !quitting {
+	}
 	return newWorld
 }
 

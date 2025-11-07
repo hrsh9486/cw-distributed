@@ -1,7 +1,6 @@
 package gol
 
 import (
-	"fmt"
 	"net/rpc"
 	"strconv"
 	"time"
@@ -39,7 +38,6 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 				client.Call(pauser, request, response)
 				if !isPaused {
 					isPaused = true
-					fmt.Println(response.CompletedTurns)
 					c.events <- StateChange{response.CompletedTurns, Paused}
 				} else {
 					isPaused = false
