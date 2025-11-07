@@ -22,11 +22,13 @@ var globalTurn int
 var quitting bool
 var pausing bool
 var mu sync.Mutex
+var isKilled bool
 
 // Calculate a certain number of game of life states
 func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerResponse) (err error) {
 	quitting = false
 	pausing = false
+	isKilled = false
 	turn := 0
 	world := request.World
 	mu.Lock()
@@ -34,7 +36,7 @@ func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerRespo
 	globalWorld = world
 	mu.Unlock()
 
-	for turn < request.Turns && !quitting {
+	for turn < request.Turns && !quitting && !isKilled {
 		world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, request.H, world)
 		turn += 1
 		mu.Lock()
@@ -84,6 +86,11 @@ func (Game GameOfLife) Saver(request gol.SaverRequest, response *gol.SaverRespon
 	response.CompletedTurns = globalTurn
 	response.World = globalWorld
 	mu.Unlock()
+	return
+}
+
+func (Game GameOfLife) Killer(request gol.KillerRequest, response *gol.KillerResponse) (err error) {
+	isKilled = true
 	return
 }
 
@@ -155,6 +162,7 @@ func getAliveCells(h, w int, world [][]uint8) []util.Cell {
 }
 
 func main() {
+
 	fmt.Println("Listening for a connection...")
 	pAddr := flag.String("port", "8030", "The port the server is listening on")
 	flag.Parse()
@@ -162,6 +170,8 @@ func main() {
 	rpc.Register(&GameOfLife{})
 
 	listener, _ := net.Listen("tcp", ":"+*pAddr)
-	defer listener.Close()
-	rpc.Accept(listener)
+	for !isKilled {
+		rpc.Accept(listener)
+	}
+	listener.Close()
 }

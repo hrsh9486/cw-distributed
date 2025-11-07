@@ -54,3 +54,6 @@ type SaverResponse struct {
 	CompletedTurns int
 	World          [][]uint8
 }
+
+type KillerRequest struct{}
+type KillerResponse struct{}
