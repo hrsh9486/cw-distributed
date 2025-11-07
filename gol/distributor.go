@@ -1,6 +1,7 @@
 package gol
 
 import (
+	"fmt"
 	"net/rpc"
 	"strconv"
 	"time"
@@ -16,7 +17,7 @@ type distributorChannels struct {
 	keyPressesChan <-chan rune
 }
 
-func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int, fileName string) {
+func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int, isPaused bool) {
 	for {
 		select {
 		case <-ticker.C:
@@ -31,25 +32,20 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
 				response := new(WorkerResponse)
 				client.Call(quitter, request, response)
-				// Need to add something here to deal with logic on client side
-				// c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}
-				// outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
-				// c.ioCommand <- ioOutput
-				// c.ioFilename <- outputFileName
-				// for i := range response.World {
-				// 	for j := 0; j < w; j++ {
-				// 		c.ioOutput <- response.World[i][j]
-				// 	}
-				// }
-				// c.ioCommand <- ioCheckIdle
-				// c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
-				// c.events <- StateChange{response.CompletedTurns, Quitting}
 
-				// Need to add something here to deal with logic on client side
 			case 'p':
-				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
-				response := new(WorkerResponse)
+				request := PauserRequest{}
+				response := new(PauserResponse)
 				client.Call(pauser, request, response)
+				if !isPaused {
+					isPaused = true
+					fmt.Println(response.CompletedTurns)
+					c.events <- StateChange{response.CompletedTurns, Paused}
+				} else {
+					isPaused = false
+					c.events <- StateChange{response.CompletedTurns, Executing}
+				}
+
 				// Need to add something here to deal with logic on client side
 			case 's':
 				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
@@ -112,10 +108,8 @@ func distributor(p Params, c distributorChannels) {
 	request := WorkerRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
 	response := new(WorkerResponse)
 
-	go handleTicker(ticker, done, client, c, h, w, fileName)
+	go handleTicker(ticker, done, client, c, h, w, false)
 	client.Call(loop, request, response)
-	// c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
-	// c.events <- StateChange{response.CompletedTurns, Quitting}
 	world = response.World
 
 	c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}

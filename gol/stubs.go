@@ -39,3 +39,10 @@ type TickerResponse struct {
 	CompletedTurns  int
 	AliveCellsCount int
 }
+
+type PauserRequest struct {
+}
+
+type PauserResponse struct {
+	CompletedTurns int
+}
