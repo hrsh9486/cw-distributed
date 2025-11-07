@@ -46,3 +46,11 @@ type PauserRequest struct {
 type PauserResponse struct {
 	CompletedTurns int
 }
+
+type SaverRequest struct {
+}
+
+type SaverResponse struct {
+	CompletedTurns int
+	World          [][]uint8
+}

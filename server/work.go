@@ -79,6 +79,14 @@ func (Game GameOfLife) Pauser(request gol.PauserRequest, response *gol.PauserRes
 	return
 }
 
+func (Game GameOfLife) Saver(request gol.SaverRequest, response *gol.SaverResponse) (err error) {
+	mu.Lock()
+	response.CompletedTurns = globalTurn
+	response.World = globalWorld
+	mu.Unlock()
+	return
+}
+
 // Take a GoL state and iteratively calculate the next state for a section of the board
 func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]uint8 {
 	w := endX - startX

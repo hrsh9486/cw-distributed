@@ -16,7 +16,7 @@ type distributorChannels struct {
 	keyPressesChan <-chan rune
 }
 
-func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int, isPaused bool) {
+func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int, isPaused bool, fileName string) {
 	for {
 		select {
 		case <-ticker.C:
@@ -46,9 +46,22 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 
 				// Need to add something here to deal with logic on client side
 			case 's':
-				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
-				response := new(WorkerResponse)
+				request := SaverRequest{}
+				response := new(SaverResponse)
 				client.Call(saver, request, response)
+				outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
+				c.ioCommand <- ioOutput
+				c.ioFilename <- outputFileName
+				for i := range response.World {
+					for j := 0; j < w; j++ {
+						c.ioOutput <- response.World[i][j]
+					}
+				}
+
+				c.ioCommand <- ioCheckIdle
+				<-c.ioIdle
+				c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
+
 				// Need to add something here to deal with logic on client side
 			case 'k':
 				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
@@ -106,7 +119,7 @@ func distributor(p Params, c distributorChannels) {
 	request := WorkerRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
 	response := new(WorkerResponse)
 
-	go handleTicker(ticker, done, client, c, h, w, false)
+	go handleTicker(ticker, done, client, c, h, w, false, fileName)
 	client.Call(loop, request, response)
 	world = response.World
 
