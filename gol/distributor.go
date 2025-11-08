@@ -1,6 +1,7 @@
 package gol
 
 import (
+	"fmt"
 	"net/rpc"
 	"strconv"
 	"time"
@@ -31,6 +32,7 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
 				response := new(WorkerResponse)
 				client.Call(quitter, request, response)
+				fmt.Println("quit part", response.CompletedTurns)
 
 			case 'p':
 				request := PauserRequest{}
@@ -66,7 +68,26 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 			case 'k':
 				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
 				response := new(WorkerResponse)
-				client.Call(killer, request, response)
+				client.Call(quitter, request, response)
+				fmt.Println("kill:", response.CompletedTurns)
+
+				killerRequest := KillerRequest{}
+				killerResponse := new(KillerResponse)
+				client.Call(killer, killerRequest, killerResponse)
+
+				// outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
+				// c.ioCommand <- ioOutput
+				// c.ioFilename <- outputFileName
+				// for i := range response.World {
+				// 	for j := 0; j < w; j++ {
+				// 		c.ioOutput <- response.World[i][j]
+				// 	}
+				// }
+
+				// c.ioCommand <- ioCheckIdle
+				// <-c.ioIdle
+				// c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
+				// os.Exit(0)
 			}
 		case <-done:
 			return
@@ -118,26 +139,27 @@ func distributor(p Params, c distributorChannels) {
 
 	request := WorkerRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
 	response := new(WorkerResponse)
-
 	go handleTicker(ticker, done, client, c, h, w, false, fileName)
 	client.Call(loop, request, response)
 	world = response.World
-
+	fmt.Println("loop struct:", response.CompletedTurns)
 	c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}
 
 	outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
 	c.ioCommand <- ioOutput
 	c.ioFilename <- outputFileName
 	for i := range world {
+		// fmt.Println("inside me")
 		for j := 0; j < w; j++ {
 			c.ioOutput <- world[i][j]
+			// fmt.Println("hit this")
 		}
 	}
-
 	ticker.Stop()
 	done <- true
 	// Make sure that the Io has finished any output before exiting.
 	c.ioCommand <- ioCheckIdle
+	// fmt.Println("point")
 	<-c.ioIdle
 	c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
 	c.events <- StateChange{response.CompletedTurns, Quitting}

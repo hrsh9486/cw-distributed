@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"net/rpc"
+	"os"
 	"sync"
 	"time"
 
@@ -35,15 +36,46 @@ func (Game GameOfLife) Loop(request gol.WorkerRequest, response *gol.WorkerRespo
 	globalTurn = 0
 	globalWorld = world
 	mu.Unlock()
-
+	// fmt.Println("never run twice")
 	for turn < request.Turns && !quitting && !isKilled {
-		world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, request.H, world)
-		turn += 1
+		// rishi for turn < request.Turns && !quitting {
+		// fmt.Println("isKilled init", isKilled)
+		for pausing && !quitting {
+			// fmt.Println("isKilled within", isKilled)
+			// if isKilled {
+			// 	fmt.Println()
+			// 	mu.Lock()
+			// 	isKilled = true
+			// 	mu.Unlock()
+			// 	break
+			// }
+			fmt.Println("killed?", isKilled)
+			mu.Lock()
+			if isKilled {
+				fmt.Println("killed")
+			}
+			mu.Unlock()
+			// fmt.Println("")
+			fmt.Println("oops")
+		}
+		fmt.Println("beep:", isKilled)
+		if isKilled {
+			os.Exit(0)
+		}
+		fmt.Println("last seen here")
 		mu.Lock()
+
+		world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, request.H, world)
+
+		// mu.Unlock()
+
+		turn += 1
+		// mu.Lock()
 		globalTurn = turn
 		globalWorld = world
-		mu.Unlock()
+		// mu.Unlock()
 		response.CompletedTurns = turn
+		mu.Unlock()
 	}
 
 	response.World = world
@@ -64,8 +96,8 @@ func (Game GameOfLife) TickerService(request gol.TickerRequest, response *gol.Ti
 func (Game GameOfLife) Quitter(request gol.WorkerRequest, response *gol.WorkerResponse) (err error) {
 	mu.Lock()
 	quitting = true
-	mu.Unlock()
-	mu.Lock()
+	// mu.Unlock()
+	// mu.Lock()
 	response.World = globalWorld
 	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
 	response.CompletedTurns = globalTurn
@@ -78,6 +110,7 @@ func (Game GameOfLife) Pauser(request gol.PauserRequest, response *gol.PauserRes
 	pausing = !pausing
 	response.CompletedTurns = globalTurn
 	mu.Unlock()
+	fmt.Println("Permanantly locked")
 	return
 }
 
@@ -90,7 +123,16 @@ func (Game GameOfLife) Saver(request gol.SaverRequest, response *gol.SaverRespon
 }
 
 func (Game GameOfLife) Killer(request gol.KillerRequest, response *gol.KillerResponse) (err error) {
+	mu.Lock()
 	isKilled = true
+	fmt.Println("inside lock", isKilled)
+	mu.Unlock()
+	fmt.Println("outside lock", isKilled)
+	if !pausing {
+		// fmt.Println("wrong")
+		os.Exit(0)
+	}
+	// os.Exit(0)
 	return
 }
 
@@ -142,8 +184,9 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 		}
 	}
 
-	for pausing && !quitting {
-	}
+	// for pausing && !quitting {
+	// 	fmt.Println("oops")
+	// }
 	return newWorld
 }
 

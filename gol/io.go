@@ -137,10 +137,13 @@ func startIo(p Params, c ioChannels) {
 		switch command {
 		case ioInput:
 			io.readPgmImage()
+			// fmt.Println("lingering 1")
 		case ioOutput:
 			io.writePgmImage()
+			// fmt.Println("lingering 2")
 		case ioCheckIdle:
 			io.channels.idle <- true
+			// fmt.Println("lingering 3")
 		}
 	}
 }
