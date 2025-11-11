@@ -4,7 +4,17 @@ import (
 	"net/rpc"
 	"strconv"
 	"time"
+
+	"uk.ac.bris.cs/gameoflife/stubs"
 )
+
+// Functions to be called by the client to access broker methods
+var scheduleWork = "Broker.ScheduleWork"
+var brokerTickerService = "Broker.TickerService"
+var brokerSaver = "Broker.Saver"
+var brokerQuitter = "Broker.Quitter"
+var brokerPauser = "Broker.Pauser"
+var brokerKiller = "Broker.Killer"
 
 type distributorChannels struct {
 	events         chan<- Event
@@ -20,22 +30,22 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 	for {
 		select {
 		case <-ticker.C:
-			request := TickerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
-			response := new(TickerResponse)
-			client.Call(tickerService, request, response)
+			request := stubs.TickerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+			response := new(stubs.TickerResponse)
+			client.Call(brokerTickerService, request, response)
 			c.events <- AliveCellsCount{response.CompletedTurns, response.AliveCellsCount}
 
 		case keyPress := <-c.keyPressesChan:
 			switch keyPress {
 			case 'q':
-				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
-				response := new(WorkerResponse)
-				client.Call(quitter, request, response)
+				request := stubs.BrokerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+				response := new(stubs.BrokerResponse)
+				client.Call(brokerQuitter, request, response)
 
 			case 'p':
-				request := PauserRequest{}
-				response := new(PauserResponse)
-				client.Call(pauser, request, response)
+				request := stubs.PauserRequest{}
+				response := new(stubs.PauserResponse)
+				client.Call(brokerPauser, request, response)
 				if !isPaused {
 					isPaused = true
 					c.events <- StateChange{response.CompletedTurns, Paused}
@@ -46,9 +56,9 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 
 				// Need to add something here to deal with logic on client side
 			case 's':
-				request := SaverRequest{}
-				response := new(SaverResponse)
-				client.Call(saver, request, response)
+				request := stubs.SaverRequest{}
+				response := new(stubs.SaverResponse)
+				client.Call(brokerSaver, request, response)
 				outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
 				c.ioCommand <- ioOutput
 				c.ioFilename <- outputFileName
@@ -64,9 +74,9 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 
 				// Need to add something here to deal with logic on client side
 			case 'k':
-				request := WorkerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
-				response := new(WorkerResponse)
-				client.Call(killer, request, response)
+				request := stubs.BrokerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+				response := new(stubs.BrokerResponse)
+				client.Call(brokerKiller, request, response)
 			}
 		case <-done:
 			return
@@ -110,17 +120,17 @@ func distributor(p Params, c distributorChannels) {
 	// TODO: Execute all turns of the Game of Life.
 	// server := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
 	// flag.Parse()
-	server := "127.0.0.1:8030"
+	broker := "127.0.0.1:8030"
 
 	//TODO: connect to the RPC server and send the request(s)
-	client, _ := rpc.Dial("tcp", server)
+	client, _ := rpc.Dial("tcp", broker)
 	defer client.Close()
 
-	request := WorkerRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
-	response := new(WorkerResponse)
+	request := stubs.BrokerRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
+	response := new(stubs.BrokerResponse)
 
 	go handleTicker(ticker, done, client, c, h, w, false, fileName)
-	client.Call(loop, request, response)
+	client.Call(scheduleWork, request, response)
 	world = response.World
 
 	c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}
