@@ -16,7 +16,6 @@ import (
 // Functions to be called by the broker to access worker methods
 var loop = "GameOfLife.Loop"
 
-// var tickerService = "GameOfLife.TickerService"
 // var saver = "GameOfLife.Saver"
 // var quitter = "GameOfLife.Quitter"
 // var pauser = "GameOfLife.Pauser"
@@ -40,7 +39,7 @@ func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, respo
 
 }
 
-func (broker Broker) ScheduleWork(request *stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
+func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.ClientResponse) (err error) {
 	// Split up world, call worker methods, recollect
 	sectionHeight := request.H / len(globalWorkers)
 
@@ -103,6 +102,15 @@ func (broker Broker) ScheduleWork(request *stubs.BrokerRequest, response *stubs.
 		response.World = globalWorld
 		response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
 	}
+	mu.Unlock()
+	return
+}
+
+func (broker Broker) TickerService(request stubs.TickerRequest, response *stubs.TickerResponse) (err error) {
+	mu.Lock()
+	// fmt.Println(Game.world)
+	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld))
+	response.CompletedTurns = globalCompletedTurns
 	mu.Unlock()
 	return
 }

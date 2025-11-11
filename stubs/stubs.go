@@ -33,7 +33,6 @@ type BrokerRequest struct {
 type BrokerResponse struct {
 	// Probably need to pass in turns, worker number, board, h and w etc.
 	World          [][]uint8
-	AliveCells     []util.Cell
 	CompletedTurns int
 	StartY         int
 	EndY           int
