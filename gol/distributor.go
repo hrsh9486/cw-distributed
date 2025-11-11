@@ -26,7 +26,7 @@ type distributorChannels struct {
 	keyPressesChan <-chan rune
 }
 
-func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int, isPaused bool, fileName string) {
+func handleEvent(ticker *time.Ticker, done chan bool, client *rpc.Client, c distributorChannels, h int, w int, isPaused bool, fileName string) {
 	for {
 		select {
 		case <-ticker.C:
@@ -62,9 +62,11 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 				outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
 				c.ioCommand <- ioOutput
 				c.ioFilename <- outputFileName
-				for i := range response.World {
+				// Need to pass in height and width
+				responseWorld := stubs.Decode(response.BitMap, h, w)
+				for i := range responseWorld {
 					for j := 0; j < w; j++ {
-						c.ioOutput <- response.World[i][j]
+						c.ioOutput <- responseWorld[i][j]
 					}
 				}
 
@@ -82,8 +84,6 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 			return
 		}
 	}
-	// call the ticker every 2 seconds
-	// use the rpc ticker thingy
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
@@ -92,6 +92,7 @@ func distributor(p Params, c distributorChannels) {
 	// Preamble
 	// ---------------------------------------------------------------------
 	// Extract information from parameters
+
 	h := p.ImageHeight
 	w := p.ImageWidth
 	fileName := strconv.Itoa(h) + "x" + strconv.Itoa(w)
@@ -126,12 +127,19 @@ func distributor(p Params, c distributorChannels) {
 	client, _ := rpc.Dial("tcp", broker)
 	defer client.Close()
 
-	request := stubs.ClientRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
+	request := stubs.ClientRequest{
+		Turns:  p.Turns,
+		StartY: 0,
+		EndY:   h,
+		StartX: 0,
+		EndX:   w,
+		H:      h,
+		BitMap: stubs.Encode(world, h, w)}
 	response := new(stubs.ClientResponse)
 
-	go handleTicker(ticker, done, client, c, h, w, false, fileName)
+	go handleEvent(ticker, done, client, c, h, w, false, fileName)
 	client.Call(scheduleWork, request, response)
-	world = response.World
+	world = stubs.Decode(response.BitMap, w, h)
 
 	c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}
 

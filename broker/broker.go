@@ -43,9 +43,11 @@ func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, respo
 func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.ClientResponse) (err error) {
 	// Split up world, call worker methods, recollect
 	sectionHeight := request.H / len(globalWorkers)
+	h := request.EndY - request.StartY
+	w := request.EndX - request.StartX
 
 	mu.Lock()
-	globalWorld = request.World
+	globalWorld = stubs.Decode(request.BitMap, h, w)
 	quitting = false
 	mu.Unlock()
 
@@ -53,7 +55,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 	turn := 0
 	for turn < request.Turns && !quitting {
-		newWorld := make([][]uint8, len(request.World))
+		newWorld := make([][]uint8, h)
 		responses := make([]*stubs.BrokerResponse, len(globalWorkers))
 		for i := range globalWorkers {
 			var upperBound int
@@ -71,10 +73,16 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 					fmt.Println(err)
 				}
 				defer client.Close()
-				req := stubs.BrokerRequest{Turns: request.Turns, StartY: i * sectionHeight, EndY: upperBound, StartX: request.StartX, EndX: request.EndX, H: request.H, World: globalWorld}
+				req := stubs.BrokerRequest{
+					Turns:  request.Turns,
+					StartY: i * sectionHeight,
+					EndY:   upperBound,
+					StartX: request.StartX,
+					EndX:   request.EndX,
+					H:      request.H,
+					BitMap: stubs.Encode(globalWorld, h, w)}
 				responses[i] = new(stubs.BrokerResponse)
 				client.Call(loop, &req, &responses[i])
-
 			}(i, upperBound)
 
 		}
@@ -84,8 +92,11 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 		// Need to fix this section to ensure that they are appending it correctly
 		for i := range globalWorkers {
 			res := responses[i]
+			h := res.EndY - res.StartY
+			w := request.EndX - request.StartX
+			workerWorld := stubs.Decode(res.BitMap, h, w)
 			for row := res.StartY; row < res.EndY; row++ {
-				newWorld[row] = res.World[row-res.StartY]
+				newWorld[row] = workerWorld[row-res.StartY]
 			}
 		}
 
@@ -99,11 +110,11 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 	mu.Lock()
 	if request.Turns == 0 {
 		response.CompletedTurns = 0
-		response.World = request.World
-		response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, request.World)
+		response.BitMap = request.BitMap
+		response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, stubs.Decode(request.BitMap, h, w))
 	} else {
 		response.CompletedTurns = globalCompletedTurns
-		response.World = globalWorld
+		response.BitMap = stubs.Encode(globalWorld, h, w)
 		response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
 	}
 	mu.Unlock()
@@ -112,7 +123,6 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 func (broker Broker) TickerService(request stubs.TickerRequest, response *stubs.TickerResponse) (err error) {
 	mu.Lock()
-	// fmt.Println(Game.world)
 	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld))
 	response.CompletedTurns = globalCompletedTurns
 	mu.Unlock()
@@ -124,7 +134,9 @@ func (broker Broker) Quitter(request stubs.ClientRequest, response *stubs.Client
 	quitting = true
 	mu.Unlock()
 	mu.Lock()
-	response.World = globalWorld
+	h := request.EndY - request.StartY
+	w := request.EndX - request.StartX
+	response.BitMap = stubs.Encode(globalWorld, h, w)
 	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
 	response.CompletedTurns = globalCompletedTurns
 	mu.Unlock()
@@ -134,7 +146,10 @@ func (broker Broker) Quitter(request stubs.ClientRequest, response *stubs.Client
 func (broker Broker) Saver(request stubs.SaverRequest, response *stubs.SaverResponse) (err error) {
 	mu.Lock()
 	response.CompletedTurns = globalCompletedTurns
-	response.World = globalWorld
+
+	h := len(globalWorld)
+	w := len(globalWorld[0])
+	response.BitMap = stubs.Encode(globalWorld, h, w)
 	mu.Unlock()
 	return
 }

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"uk.ac.bris.cs/gameoflife/stubs"
-	"uk.ac.bris.cs/gameoflife/util"
 )
 
 // Need a mutex lock on world and turn
@@ -30,7 +29,9 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	// pausing = false
 	// isKilled = false
 	// turn := 0
-	world := request.World
+	h := request.EndY - request.StartY
+	w := request.EndX - request.StartX
+	world := stubs.Decode(request.BitMap, h, w)
 	mu.Lock()
 	globalTurn = 0
 	globalWorld = world
@@ -41,7 +42,7 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	globalWorld = world
 	mu.Unlock()
 
-	response.World = world
+	response.BitMap = stubs.Encode(world, h, w)
 	response.StartY = request.StartY
 	response.EndY = request.EndY
 	return
@@ -51,14 +52,6 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 // 	mu.Lock()
 // 	pausing = !pausing
 // 	response.CompletedTurns = globalTurn
-// 	mu.Unlock()
-// 	return
-// }
-
-// func (Game GameOfLife) Saver(request broker.SaverRequest, response *broker.SaverResponse) (err error) {
-// 	mu.Lock()
-// 	response.CompletedTurns = globalTurn
-// 	response.World = globalWorld
 // 	mu.Unlock()
 // 	return
 // }
@@ -116,23 +109,9 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 		}
 	}
 
-	for pausing && !quitting {
-	}
+	// for pausing && !quitting {
+	// }
 	return newWorld
-}
-
-func getAliveCells(h, w int, world [][]uint8) []util.Cell {
-	var aliveCells []util.Cell
-	var alive uint8 = 255
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
-			if world[y][x] == alive {
-				aliveCell := util.Cell{X: x, Y: y}
-				aliveCells = append(aliveCells, aliveCell)
-			}
-		}
-	}
-	return aliveCells
 }
 
 func main() {
