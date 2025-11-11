@@ -120,7 +120,7 @@ func main() {
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 
-	brokerAddr := "127.0.0.1:8030"
+	brokerAddr := "137.222.229.18"
 	client, _ := rpc.Dial("tcp", brokerAddr)
 	defer client.Close()
 
