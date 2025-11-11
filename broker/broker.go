@@ -36,6 +36,7 @@ func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, respo
 	mu.Lock()
 	globalWorkers = append(globalWorkers, request.Address)
 	mu.Unlock()
+	fmt.Println("Worker Registered at IP:" + request.Address)
 	return
 
 }
@@ -178,7 +179,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 	rpc.Register(&Broker{})
 
-	listener, _ := net.Listen("tcp", ":"+*pAddr)
+	listener, _ := net.Listen("tcp", "0.0.0.0:"+*pAddr)
 	fmt.Println("Broker listening on port:", *pAddr)
 	rpc.Accept(listener)
 	listener.Close()

@@ -116,7 +116,7 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 
 func main() {
 	pAddr := flag.String("port", "8031", "Port the worker listens on")
-	workerAddr := flag.String("address", "127.0.0.1", "IP address of worker")
+	workerAddr := flag.String("address", "44.200.169.147", "IP address of worker")
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 
