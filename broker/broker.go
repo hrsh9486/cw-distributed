@@ -42,39 +42,53 @@ func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, respo
 
 func (broker Broker) ScheduleWork(request stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
 	// Split up world, call worker methods, recollect
-	numWorkers := len(globalWorkers)
-	sectionHeight := request.H / numWorkers
-	var responses []stubs.BrokerResponse
+	sectionHeight := request.H / len(globalWorkers)
 	mu.Lock()
 	globalWorld = request.World
 	mu.Unlock()
 
+	// Issue is within this for loop, essentially we need to synchronise the workers in some way and ensure packets are being sent back before we can do the next turn.
 	for turn := 0; turn < request.Turns; turn++ {
-		for i := 0; i < numWorkers; i++ {
+		newWorld := make([][]uint8, len(request.World))
+		responses := make([]stubs.BrokerResponse, len(globalWorkers))
+		var wg sync.WaitGroup
+		for i := range globalWorkers {
 			var upperBound int
 			if i == len(globalWorkers)-1 {
 				upperBound = request.H
 			} else {
 				upperBound = (i + 1) * sectionHeight
 			}
-			client, _ := rpc.Dial("tcp", globalWorkers[i])
-			request := stubs.BrokerRequest{Turns: request.Turns, StartY: i * sectionHeight, EndY: upperBound, StartX: request.StartX, EndX: request.EndX, H: request.H, World: globalWorld}
-			responses = append(responses, *new(stubs.BrokerResponse))
-			client.Call(loop, request, responses[i])
+
+			wg.Add(1)
+			go func(i, upperBound int) {
+				defer wg.Done()
+				client, err := rpc.Dial("tcp", globalWorkers[i])
+				if err != nil {
+					fmt.Println(err)
+				}
+				defer client.Close()
+				req := stubs.BrokerRequest{Turns: request.Turns, StartY: i * sectionHeight, EndY: upperBound, StartX: request.StartX, EndX: request.EndX, H: request.H, World: globalWorld}
+				responses[i] = *new(stubs.BrokerResponse)
+				client.Call(loop, req, responses[i])
+				// Ok, so the call is fine, it enters the worker method, and the worker method executes correctly. However, for some reason, the response is not being recorded properly.
+				fmt.Println(responses[i].World)
+
+			}(i, upperBound)
+
+		}
+		wg.Wait()
+
+		mu.Lock()
+		for i := range globalWorkers {
+			fmt.Println(responses[i].World)
+			fmt.Println(responses[i].AliveCells)
+			fmt.Println(responses[i].CompletedTurns)
 		}
 
-		var newWorld [][]uint8
-		for i := 0; i < numWorkers; i++ {
-			mu.Lock()
-			newWorld = append(newWorld, responses[i].World...)
-			globalAliveCells = append(globalAliveCells, responses[i].AliveCells...)
-			mu.Unlock()
-		}
-		mu.Lock()
 		globalWorld = newWorld
 		globalCompletedTurns += 1
 		mu.Unlock()
-
 	}
 
 	response.CompletedTurns = globalCompletedTurns

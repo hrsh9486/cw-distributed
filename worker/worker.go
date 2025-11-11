@@ -44,6 +44,8 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	mu.Unlock()
 	// response.CompletedTurns = turn
 
+	// Pass by value not by memory
+
 	response.World = world
 	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, world)
 	return
