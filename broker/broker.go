@@ -30,6 +30,7 @@ var globalWorkers []string
 var globalWorld [][]uint8
 var globalCompletedTurns int
 var globalAliveCells []util.Cell
+var quitting bool
 
 func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, response *stubs.WorkerConnectionResponse) (err error) {
 	mu.Lock()
@@ -45,11 +46,13 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 	mu.Lock()
 	globalWorld = request.World
+	quitting = false
 	mu.Unlock()
 
 	var wg sync.WaitGroup
 
-	for turn := 0; turn < request.Turns; turn++ {
+	turn := 0
+	for turn < request.Turns && !quitting {
 		newWorld := make([][]uint8, len(request.World))
 		responses := make([]*stubs.BrokerResponse, len(globalWorkers))
 		for i := range globalWorkers {
@@ -90,6 +93,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 		globalCompletedTurns += 1
 		globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
 		mu.Unlock()
+		turn++
 	}
 
 	mu.Lock()
@@ -111,6 +115,26 @@ func (broker Broker) TickerService(request stubs.TickerRequest, response *stubs.
 	// fmt.Println(Game.world)
 	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld))
 	response.CompletedTurns = globalCompletedTurns
+	mu.Unlock()
+	return
+}
+
+func (broker Broker) Quitter(request stubs.ClientRequest, response *stubs.ClientResponse) (err error) {
+	mu.Lock()
+	quitting = true
+	mu.Unlock()
+	mu.Lock()
+	response.World = globalWorld
+	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
+	response.CompletedTurns = globalCompletedTurns
+	mu.Unlock()
+	return
+}
+
+func (broker Broker) Saver(request stubs.SaverRequest, response *stubs.SaverResponse) (err error) {
+	mu.Lock()
+	response.CompletedTurns = globalCompletedTurns
+	response.World = globalWorld
 	mu.Unlock()
 	return
 }

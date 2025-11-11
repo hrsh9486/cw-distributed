@@ -37,42 +37,15 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	mu.Unlock()
 
 	world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, request.H, world)
-	// turn += 1
 	mu.Lock()
-	// globalTurn = turn
 	globalWorld = world
 	mu.Unlock()
-	// response.CompletedTurns = turn
-
-	// Pass by value not by memory
 
 	response.World = world
 	response.StartY = request.StartY
 	response.EndY = request.EndY
 	return
 }
-
-// func (Game GameOfLife) TickerService(request broker.TickerRequest, response *broker.TickerResponse) (err error) {
-// 	mu.Lock()
-// 	// fmt.Println(Game.world)
-// 	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld))
-// 	response.CompletedTurns = globalTurn
-// 	mu.Unlock()
-// 	return
-
-// }
-
-// func (Game GameOfLife) Quitter(request broker.WorkerRequest, response *broker.WorkerResponse) (err error) {
-// 	mu.Lock()
-// 	quitting = true
-// 	mu.Unlock()
-// 	mu.Lock()
-// 	response.World = globalWorld
-// 	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
-// 	response.CompletedTurns = globalTurn
-// 	mu.Unlock()
-// 	return
-// }
 
 // func (Game GameOfLife) Pauser(request broker.PauserRequest, response *broker.PauserResponse) (err error) {
 // 	mu.Lock()
