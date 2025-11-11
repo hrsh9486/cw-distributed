@@ -47,7 +47,8 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	// Pass by value not by memory
 
 	response.World = world
-	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, world)
+	response.StartY = request.StartY
+	response.EndY = request.EndY
 	return
 }
 

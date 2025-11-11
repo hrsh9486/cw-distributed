@@ -40,18 +40,19 @@ func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, respo
 
 }
 
-func (broker Broker) ScheduleWork(request stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
+func (broker Broker) ScheduleWork(request *stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
 	// Split up world, call worker methods, recollect
 	sectionHeight := request.H / len(globalWorkers)
+
 	mu.Lock()
 	globalWorld = request.World
 	mu.Unlock()
 
-	// Issue is within this for loop, essentially we need to synchronise the workers in some way and ensure packets are being sent back before we can do the next turn.
+	var wg sync.WaitGroup
+
 	for turn := 0; turn < request.Turns; turn++ {
 		newWorld := make([][]uint8, len(request.World))
-		responses := make([]stubs.BrokerResponse, len(globalWorkers))
-		var wg sync.WaitGroup
+		responses := make([]*stubs.BrokerResponse, len(globalWorkers))
 		for i := range globalWorkers {
 			var upperBound int
 			if i == len(globalWorkers)-1 {
@@ -69,10 +70,8 @@ func (broker Broker) ScheduleWork(request stubs.BrokerRequest, response *stubs.B
 				}
 				defer client.Close()
 				req := stubs.BrokerRequest{Turns: request.Turns, StartY: i * sectionHeight, EndY: upperBound, StartX: request.StartX, EndX: request.EndX, H: request.H, World: globalWorld}
-				responses[i] = *new(stubs.BrokerResponse)
-				client.Call(loop, req, responses[i])
-				// Ok, so the call is fine, it enters the worker method, and the worker method executes correctly. However, for some reason, the response is not being recorded properly.
-				fmt.Println(responses[i].World)
+				responses[i] = new(stubs.BrokerResponse)
+				client.Call(loop, &req, &responses[i])
 
 			}(i, upperBound)
 
@@ -80,21 +79,46 @@ func (broker Broker) ScheduleWork(request stubs.BrokerRequest, response *stubs.B
 		wg.Wait()
 
 		mu.Lock()
+		// Need to fix this section to ensure that they are appending it correctly
 		for i := range globalWorkers {
-			fmt.Println(responses[i].World)
-			fmt.Println(responses[i].AliveCells)
-			fmt.Println(responses[i].CompletedTurns)
+			res := responses[i]
+			for row := res.StartY; row < res.EndY; row++ {
+				newWorld[row] = res.World[row-res.StartY]
+			}
 		}
 
 		globalWorld = newWorld
 		globalCompletedTurns += 1
+		globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
 		mu.Unlock()
 	}
 
-	response.CompletedTurns = globalCompletedTurns
-	response.World = globalWorld
-	response.AliveCells = globalAliveCells
+	mu.Lock()
+	if request.Turns == 0 {
+		response.CompletedTurns = 0
+		response.World = request.World
+		response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, request.World)
+	} else {
+		response.CompletedTurns = globalCompletedTurns
+		response.World = globalWorld
+		response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
+	}
+	mu.Unlock()
 	return
+}
+
+func getAliveCells(h, w int, world [][]uint8) []util.Cell {
+	var aliveCells []util.Cell
+	var alive uint8 = 255
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if world[y][x] == alive {
+				aliveCell := util.Cell{X: x, Y: y}
+				aliveCells = append(aliveCells, aliveCell)
+			}
+		}
+	}
+	return aliveCells
 }
 
 // Register workers

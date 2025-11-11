@@ -18,12 +18,6 @@ type WorkerConnectionResponse struct {
 
 // Request and response for broker to call worker methods
 // -------------------------------------------------------------------------------
-type BrokerResponse struct {
-	// Probably need to pass in turns, worker number, board, h and w etc.
-	World          [][]uint8
-	AliveCells     []util.Cell
-	CompletedTurns int
-}
 
 type BrokerRequest struct {
 	// Probably need to pass in turns, worker number, board, etc.
@@ -34,6 +28,15 @@ type BrokerRequest struct {
 	EndX   int
 	H      int
 	World  [][]uint8
+}
+
+type BrokerResponse struct {
+	// Probably need to pass in turns, worker number, board, h and w etc.
+	World          [][]uint8
+	AliveCells     []util.Cell
+	CompletedTurns int
+	StartY         int
+	EndY           int
 }
 
 //-------------------------------------------------------------------------------

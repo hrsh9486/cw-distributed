@@ -126,8 +126,8 @@ func distributor(p Params, c distributorChannels) {
 	client, _ := rpc.Dial("tcp", broker)
 	defer client.Close()
 
-	request := stubs.BrokerRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
-	response := new(stubs.BrokerResponse)
+	request := stubs.ClientRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
+	response := new(stubs.ClientResponse)
 
 	go handleTicker(ticker, done, client, c, h, w, false, fileName)
 	client.Call(scheduleWork, request, response)
