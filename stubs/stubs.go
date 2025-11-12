@@ -1,6 +1,11 @@
 package stubs
 
 import (
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+
 	"uk.ac.bris.cs/gameoflife/util"
 )
 
@@ -133,4 +138,21 @@ func Decode(bitMap []byte, h, w int) [][]uint8 {
 		}
 	}
 	return game
+}
+
+func GetMyPrivateIP(metadataHost string) (string, error) {
+
+	url := fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("IMDS connection fail, with status: %s", err)
+	}
+	defer resp.Body.Close()
+	ipBytes, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+
+	}
+	return strings.TrimSpace(string(ipBytes)), nil
 }

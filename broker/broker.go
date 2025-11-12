@@ -175,13 +175,23 @@ func getAliveCells(h, w int, world [][]uint8) []util.Cell {
 // Return final result
 func main() {
 	pAddr := flag.String("port", "8030", "The port the broker is listening on")
-	// brokerAddr := flag.String("baddr", "127.0.0.0.1", "The address of the broker")
+	remote := flag.String("remote", "1", "Is it running on a local instance?")
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
+
+	var listenIP string
+
+	if *remote == "0" {
+		listenIP = "0.0.0.0"
+	} else {
+		listenIP = "127.0.0.1"
+
+	}
+
 	rpc.Register(&Broker{})
 
-	listener, _ := net.Listen("tcp", ":"+*pAddr)
-	fmt.Println("Broker listening on port:", *pAddr)
+	listener, _ := net.Listen("tcp", listenIP+":"+*pAddr)
+	fmt.Println("Broker listening on port:", listenIP+":"+*pAddr)
 	rpc.Accept(listener)
 	listener.Close()
 }

@@ -3,12 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
-	"net/http"
 	"net/rpc"
-	"strings"
 	"sync"
 	"time"
 
@@ -117,25 +114,6 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 	return newWorld
 }
 
-func getMyPrivateIP(metadataHost string) (string, error) {
-
-	fmt.Println("Worker being run on remote EC2 instance")
-	fmt.Println("Querying IMDS for EC2 public IP address")
-	url := fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost)
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", fmt.Errorf("IMDS connection fail, with status: %s", err)
-	}
-	defer resp.Body.Close()
-	ipBytes, err := io.ReadAll(resp.Body)
-
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
-
-	}
-	return strings.TrimSpace(string(ipBytes)), nil
-}
-
 func main() {
 	pAddr := flag.String("port", "8031", "Port the worker listens on")
 	brokerAddr := flag.String("broker", "127.0.0.1", "IP address of the broker")
@@ -151,7 +129,9 @@ func main() {
 
 		listenIP = "0.0.0.0"
 		imdsHost := "169.254.169.254"
-		myPublicIP, err := getMyPrivateIP(imdsHost)
+		fmt.Println("Worker being run on remote EC2 instance")
+		fmt.Println("Querying IMDS for EC2 public IP address")
+		myPublicIP, err := stubs.GetMyPrivateIP(imdsHost)
 		if err != nil {
 			fmt.Printf("Error retrieving public IP address, with error %v\n ", err)
 		}
