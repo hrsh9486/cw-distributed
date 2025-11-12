@@ -141,7 +141,7 @@ func Decode(bitMap []byte, h, w int) [][]uint8 {
 	return game
 }
 
-func GetMyPrivateIP(metadataHost string) string {
+func GetMyIP(metadataHost string, private bool) string {
 	client := http.Client{Timeout: 2 * time.Second}
 
 	// Get IMDSv2 session token
@@ -152,7 +152,15 @@ func GetMyPrivateIP(metadataHost string) string {
 	token, _ := io.ReadAll(tokenResp.Body)
 
 	// Use token to fetch private IP
-	ipReq, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost), nil)
+	var ipReq *http.Request
+	if private {
+
+		ipReq, _ = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost), nil)
+	} else {
+
+		ipReq, _ = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost), nil)
+	}
+
 	ipReq.Header.Add("X-aws-ec2-metadata-token", string(token))
 	ipResp, _ := client.Do(ipReq)
 	defer ipResp.Body.Close()
