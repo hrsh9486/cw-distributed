@@ -3,9 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
+	"net/http"
 	"net/rpc"
+	"strings"
 	"sync"
 	"time"
 
@@ -114,26 +117,69 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 	return newWorld
 }
 
+func getMyPublicIP(metadataHost string) (string, error) {
+
+	fmt.Println("Worker being run on remote EC2 instance")
+	fmt.Println("Querying IMDS for EC2 public IP address")
+	url := fmt.Sprintf("http://%s/latest/meta-data/public-ipv4", metadataHost)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", fmt.Errorf("IMDS connection fail, with status: %s", err)
+	}
+	defer resp.Body.Close()
+	ipBytes, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+
+	}
+	return strings.TrimSpace(string(ipBytes)), nil
+}
+
 func main() {
 	pAddr := flag.String("port", "8031", "Port the worker listens on")
-	workerAddr := flag.String("add", "127.0.0.0.1", "IP address of worker")
-	brokerAddr := flag.String("badd", "127.0.0.0.1", "IP address of the broker")
+	brokerAddr := flag.String("broker", "127.0.0.1", "IP address of the broker")
+	remote := flag.String("remote", "1", "Is it running on a local instance?")
+
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 
+	var listenIP string
+	var registerIP string
+
+	if *remote == "0" {
+
+		listenIP = "0.0.0.0"
+		imdsHost := "169.254.169.254"
+		myPublicIP, err := getMyPublicIP(imdsHost)
+		if err != nil {
+			fmt.Printf("Error retrieving public IP address, with error %v\n ", err)
+		}
+		registerIP = myPublicIP
+	} else {
+		listenIP = "127.0.0.1"
+
+		registerIP = "127.0.0.1"
+
+	}
+
+	*brokerAddr = *brokerAddr + ":8030"
+	listenAddr := listenIP + ":" + *pAddr
+	registerAddr := registerIP + ":" + *pAddr
+
+	fmt.Println("Dialling broker at IP address: ", *brokerAddr)
 	client, _ := rpc.Dial("tcp", *brokerAddr)
 	defer client.Close()
 
-	*workerAddr = *workerAddr + ":" + *pAddr
 	rpc.Register(&GameOfLife{})
-	listener, _ := net.Listen("tcp", *workerAddr)
+	listener, _ := net.Listen("tcp", listenAddr)
 
-	request := stubs.WorkerConnectionRequest{Address: *workerAddr}
+	request := stubs.WorkerConnectionRequest{Address: registerAddr}
 	response := new(stubs.WorkerConnectionResponse)
 
 	client.Call("Broker.RegisterWorker", request, response)
 
-	fmt.Println("Worker listening on", *workerAddr)
+	fmt.Println("Worker listening on", listenAddr)
 	rpc.Accept(listener)
 
 }
