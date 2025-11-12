@@ -158,7 +158,7 @@ func GetMyIP(metadataHost string, private bool) string {
 		ipReq, _ = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost), nil)
 	} else {
 
-		ipReq, _ = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost), nil)
+		ipReq, _ = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/public-ipv4", metadataHost), nil)
 	}
 
 	ipReq.Header.Add("X-aws-ec2-metadata-token", string(token))

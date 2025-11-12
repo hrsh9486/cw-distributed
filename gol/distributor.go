@@ -1,7 +1,6 @@
 package gol
 
 import (
-	"flag"
 	"net/rpc"
 	"strconv"
 	"time"
@@ -120,11 +119,12 @@ func distributor(p Params, c distributorChannels) {
 
 	c.events <- StateChange{0, Executing}
 	// TODO: Execute all turns of the Game of Life.
-	broker := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
+	// broker := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
 	// flag.Parse()
+	broker := "34.205.39.93"
 
 	//TODO: connect to the RPC server and send the request(s)
-	client, _ := rpc.Dial("tcp", *broker)
+	client, _ := rpc.Dial("tcp", broker)
 	defer client.Close()
 
 	request := stubs.ClientRequest{
