@@ -117,11 +117,11 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 	return newWorld
 }
 
-func getMyPublicIP(metadataHost string) (string, error) {
+func getMyPrivateIP(metadataHost string) (string, error) {
 
 	fmt.Println("Worker being run on remote EC2 instance")
 	fmt.Println("Querying IMDS for EC2 public IP address")
-	url := fmt.Sprintf("http://%s/latest/meta-data/public-ipv4", metadataHost)
+	url := fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost)
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("IMDS connection fail, with status: %s", err)
@@ -151,7 +151,7 @@ func main() {
 
 		listenIP = "0.0.0.0"
 		imdsHost := "169.254.169.254"
-		myPublicIP, err := getMyPublicIP(imdsHost)
+		myPublicIP, err := getMyPrivateIP(imdsHost)
 		if err != nil {
 			fmt.Printf("Error retrieving public IP address, with error %v\n ", err)
 		}
