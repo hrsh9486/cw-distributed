@@ -183,6 +183,12 @@ func main() {
 
 	if *remote == "0" {
 		listenIP = "0.0.0.0"
+		imdsHost := "169.254.169.254"
+		myPrivateIP, err := stubs.GetMyPrivateIP(imdsHost)
+		if err != nil {
+			fmt.Printf("Error retrieving public IP address, with error %v\n ", err)
+		}
+		fmt.Println("Broker running on EC2 instance, with private IP: " + myPrivateIP)
 	} else {
 		listenIP = "127.0.0.1"
 
