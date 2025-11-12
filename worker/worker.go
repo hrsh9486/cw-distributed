@@ -116,12 +116,12 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 
 func main() {
 	pAddr := flag.String("port", "8031", "Port the worker listens on")
-	workerAddr := flag.String("address", "44.200.169.147", "IP address of worker")
+	workerAddr := flag.String("add", "127.0.0.0.1", "IP address of worker")
+	brokerAddr := flag.String("badd", "127.0.0.0.1", "IP address of the broker")
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 
-	brokerAddr := "137.222.229.18"
-	client, _ := rpc.Dial("tcp", brokerAddr)
+	client, _ := rpc.Dial("tcp", *brokerAddr)
 	defer client.Close()
 
 	*workerAddr = *workerAddr + ":" + *pAddr
