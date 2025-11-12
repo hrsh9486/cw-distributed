@@ -111,7 +111,7 @@ func Encode(game [][]uint8, h, w int) []byte {
 		for x := 0; x < w; x++ {
 			count += 1
 			if game[y][x] == 255 {
-				bitIndex := y*x + x
+				bitIndex := y*w + x
 				byteIndex := bitIndex / 8
 				bitPosition := uint(bitIndex % 8)
 				bitMap[byteIndex] |= (1 << uint(bitPosition))
@@ -130,7 +130,7 @@ func Decode(bitMap []byte, h, w int) [][]uint8 {
 
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			bitIndex := y*x + x
+			bitIndex := y*w + x
 			byteIndex := bitIndex / 8
 			bitPosition := uint(bitIndex % 8)
 			if (bitMap[byteIndex] & (1 << bitPosition)) != 0 {
