@@ -1,6 +1,7 @@
 package gol
 
 import (
+	"fmt"
 	"net/rpc"
 	"strconv"
 	"time"
@@ -121,10 +122,15 @@ func distributor(p Params, c distributorChannels) {
 	// TODO: Execute all turns of the Game of Life.
 	// broker := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
 	// flag.Parse()
-	broker := "34.205.39.93"
+	broker := "3.237.18.107"
+	port := "8030"
+	broker = broker + ":" + port
 
 	//TODO: connect to the RPC server and send the request(s)
-	client, _ := rpc.Dial("tcp", broker)
+	client, err := rpc.Dial("tcp", broker)
+	if err != nil {
+		fmt.Println("Failed to connect to broker: ", err)
+	}
 	defer client.Close()
 
 	request := stubs.ClientRequest{

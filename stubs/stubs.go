@@ -145,24 +145,42 @@ func GetMyIP(metadataHost string, private bool) string {
 	client := http.Client{Timeout: 2 * time.Second}
 
 	// Get IMDSv2 session token
-	tokenReq, _ := http.NewRequest("PUT", fmt.Sprintf("http://%s/latest/api/token", metadataHost), nil)
+	tokenReq, err := http.NewRequest("PUT", fmt.Sprintf("http://%s/latest/api/token", metadataHost), nil)
+	if err != nil {
+		fmt.Println(err)
+	}
 	tokenReq.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", "60")
-	tokenResp, _ := client.Do(tokenReq)
+	tokenResp, err := client.Do(tokenReq)
+	if err != nil {
+		fmt.Println(err)
+	}
 	defer tokenResp.Body.Close()
-	token, _ := io.ReadAll(tokenResp.Body)
+	token, err := io.ReadAll(tokenResp.Body)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	// Use token to fetch private IP
 	var ipReq *http.Request
 	if private {
 
-		ipReq, _ = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost), nil)
+		ipReq, err = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost), nil)
+		if err != nil {
+			fmt.Println(err)
+		}
 	} else {
 
-		ipReq, _ = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/public-ipv4", metadataHost), nil)
+		ipReq, err = http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/public-ipv4", metadataHost), nil)
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 
 	ipReq.Header.Add("X-aws-ec2-metadata-token", string(token))
-	ipResp, _ := client.Do(ipReq)
+	ipResp, err := client.Do(ipReq)
+	if err != nil {
+		fmt.Println(err)
+	}
 	defer ipResp.Body.Close()
 	ipBytes, _ := io.ReadAll(ipResp.Body)
 

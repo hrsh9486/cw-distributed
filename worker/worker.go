@@ -145,11 +145,17 @@ func main() {
 	registerAddr := registerIP + ":" + *pAddr
 
 	fmt.Println("Dialling broker at IP address: ", *brokerAddr)
-	client, _ := rpc.Dial("tcp", *brokerAddr)
+	client, err := rpc.Dial("tcp", *brokerAddr)
+	if err != nil {
+		fmt.Println("Failed to connect to broker: ", err)
+	}
 	defer client.Close()
 
 	rpc.Register(&GameOfLife{})
-	listener, _ := net.Listen("tcp", listenAddr)
+	listener, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	request := stubs.WorkerConnectionRequest{Address: registerAddr}
 	response := new(stubs.WorkerConnectionResponse)

@@ -196,7 +196,10 @@ func main() {
 
 	rpc.Register(&Broker{})
 
-	listener, _ := net.Listen("tcp", listenIP+":"+*pAddr)
+	listener, err := net.Listen("tcp", listenIP+":"+*pAddr)
+	if err != nil {
+		fmt.Println(err)
+	}
 	fmt.Println("Broker listening on port:", listenIP+":"+*pAddr)
 	rpc.Accept(listener)
 	listener.Close()
