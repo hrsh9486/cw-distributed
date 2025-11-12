@@ -175,7 +175,7 @@ func getAliveCells(h, w int, world [][]uint8) []util.Cell {
 // Return final result
 func main() {
 	pAddr := flag.String("port", "8030", "The port the broker is listening on")
-	remote := flag.String("remote", "1", "Is it running on a local instance?")
+	remote := flag.String("remote", "0", "Is it running on a local instance?")
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 

@@ -117,7 +117,7 @@ func calculateNextState(startY, endY, startX, endX, h int, world [][]uint8) [][]
 func main() {
 	pAddr := flag.String("port", "8031", "Port the worker listens on")
 	brokerAddr := flag.String("broker", "127.0.0.1", "IP address of the broker")
-	remote := flag.String("remote", "1", "Is it running on a local instance?")
+	remote := flag.String("remote", "0", "Is it running on a local instance?")
 
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
