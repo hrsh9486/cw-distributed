@@ -131,11 +131,8 @@ func main() {
 		imdsHost := "169.254.169.254"
 		fmt.Println("Worker being run on remote EC2 instance")
 		fmt.Println("Querying IMDS for EC2 public IP address")
-		myPublicIP, err := stubs.GetMyPrivateIP(imdsHost)
-		if err != nil {
-			fmt.Printf("Error retrieving public IP address, with error %v\n ", err)
-		}
-		registerIP = myPublicIP
+		myPrivateIP := stubs.GetMyPrivateIP(imdsHost)
+		registerIP = myPrivateIP
 	} else {
 		listenIP = "127.0.0.1"
 

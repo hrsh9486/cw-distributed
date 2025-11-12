@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"uk.ac.bris.cs/gameoflife/util"
 )
@@ -140,19 +141,22 @@ func Decode(bitMap []byte, h, w int) [][]uint8 {
 	return game
 }
 
-func GetMyPrivateIP(metadataHost string) (string, error) {
+func GetMyPrivateIP(metadataHost string) string {
+	client := http.Client{Timeout: 2 * time.Second}
 
-	url := fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost)
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", fmt.Errorf("IMDS connection fail, with status: %s", err)
-	}
-	defer resp.Body.Close()
-	ipBytes, err := io.ReadAll(resp.Body)
+	// Get IMDSv2 session token
+	tokenReq, _ := http.NewRequest("PUT", fmt.Sprintf("http://%s/latest/api/token", metadataHost), nil)
+	tokenReq.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", "60")
+	tokenResp, _ := client.Do(tokenReq)
+	defer tokenResp.Body.Close()
+	token, _ := io.ReadAll(tokenResp.Body)
 
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
+	// Use token to fetch private IP
+	ipReq, _ := http.NewRequest("GET", fmt.Sprintf("http://%s/latest/meta-data/local-ipv4", metadataHost), nil)
+	ipReq.Header.Add("X-aws-ec2-metadata-token", string(token))
+	ipResp, _ := client.Do(ipReq)
+	defer ipResp.Body.Close()
+	ipBytes, _ := io.ReadAll(ipResp.Body)
 
-	}
-	return strings.TrimSpace(string(ipBytes)), nil
+	return strings.TrimSpace(string(ipBytes))
 }
