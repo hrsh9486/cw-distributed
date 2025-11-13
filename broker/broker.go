@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"net/rpc"
+	"strconv"
 	"sync"
 	"time"
 
@@ -31,6 +32,7 @@ var globalWorld [][]uint8
 var globalCompletedTurns int
 var globalAliveCells []util.Cell
 var quitting bool
+var globalThreads int
 
 func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, response *stubs.WorkerConnectionResponse) (err error) {
 	mu.Lock()
@@ -75,13 +77,14 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				}
 				defer client.Close()
 				req := stubs.BrokerRequest{
-					Turns:  request.Turns,
-					StartY: i * sectionHeight,
-					EndY:   upperBound,
-					StartX: request.StartX,
-					EndX:   request.EndX,
-					H:      request.H,
-					BitMap: stubs.Encode(globalWorld, h, w)}
+					Turns:   request.Turns,
+					StartY:  i * sectionHeight,
+					EndY:    upperBound,
+					StartX:  request.StartX,
+					EndX:    request.EndX,
+					H:       request.H,
+					BitMap:  stubs.Encode(globalWorld, h, w),
+					Threads: globalThreads}
 				responses[i] = new(stubs.BrokerResponse)
 				client.Call(loop, &req, &responses[i])
 			}(i, upperBound)
@@ -176,8 +179,12 @@ func getAliveCells(h, w int, world [][]uint8) []util.Cell {
 func main() {
 	pAddr := flag.String("port", "8030", "The port the broker is listening on")
 	remote := flag.String("remote", "0", "Is it running on a local instance?")
+	threads := flag.String("threads", "1", "Specify number of threads to run on each worker")
+
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
+
+	globalThreads, _ = strconv.Atoi(*threads)
 
 	var listenIP string
 
