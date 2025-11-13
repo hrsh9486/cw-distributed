@@ -48,12 +48,12 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 	w := request.EndX - request.StartX
 
 	mu.Lock()
+	globalCompletedTurns = 0
 	globalWorld = stubs.Decode(request.BitMap, h, w)
 	quitting = false
 	mu.Unlock()
 
 	var wg sync.WaitGroup
-
 	turn := 0
 	for turn < request.Turns && !quitting {
 		newWorld := make([][]uint8, h)
@@ -102,8 +102,8 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 		}
 
 		globalWorld = newWorld
-		globalCompletedTurns += 1
 		globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
+		globalCompletedTurns = turn
 		mu.Unlock()
 		turn++
 	}
@@ -125,7 +125,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 func (broker Broker) TickerService(request stubs.TickerRequest, response *stubs.TickerResponse) (err error) {
 	mu.Lock()
 	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld))
-	response.CompletedTurns = globalCompletedTurns
+	response.CompletedTurns = globalCompletedTurns + 1
 	mu.Unlock()
 	return
 }
