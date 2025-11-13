@@ -84,7 +84,9 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 					EndX:            request.EndX,
 					FullWorldHeight: fullWorldHeight,
 					FullWorldWidth:  fullWorldHeight,
+					Threads:         globalThreads,
 					BitMap:          stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)}
+
 				responses[i] = new(stubs.BrokerResponse)
 				client.Call(loop, &req, &responses[i])
 

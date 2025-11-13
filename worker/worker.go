@@ -29,10 +29,38 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	// turn := 0
 	world := stubs.Decode(request.BitMap, request.FullWorldHeight, request.FullWorldWidth)
 
-	world = calculateNextState(request.StartY, request.EndY, request.StartX, request.EndX, world)
+	threads := request.Threads
+	workerHeight := (request.EndY - request.StartY) / threads
 
+	if threads == 1 {
+		world = calculateNextState(request.StartY, request.EndY, 0, request.FullWorldWidth, world)
+	} else {
+		outputChannelList := make([]chan [][]uint8, threads)
+		for i := range outputChannelList {
+			outputChannelList[i] = make(chan [][]uint8)
+
+		}
+		for i := 0; i < threads; i++ {
+			var upperBound int
+			if i == threads-1 {
+				upperBound = request.EndY
+			} else {
+				upperBound = request.StartY + (i+1)*workerHeight
+			}
+			go worker(request.StartY+i*workerHeight, upperBound, 0, request.FullWorldWidth, world, outputChannelList[i])
+
+		}
+		// Recombine result of parallel execution in new slice
+		var newWorld [][]uint8
+		for i := 0; i < threads; i++ {
+			newWorld = append(newWorld, <-outputChannelList[i]...)
+		}
+
+		world = newWorld
+	}
 	response.BitMap = stubs.Encode(world, request.EndY-request.StartY, request.EndX-request.StartX)
 	return
+
 }
 
 // func (Game GameOfLife) Pauser(request broker.PauserRequest, response *broker.PauserResponse) (err error) {
@@ -55,6 +83,10 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 // 	isKilled = true
 // 	return
 // }
+
+func worker(startY, endY, startX, endX int, world [][]uint8, outputChan chan [][]uint8) {
+	outputChan <- calculateNextState(startY, endY, startX, endX, world)
+}
 
 // Take a broker state and iteratively calculate the next state for a section of the board
 func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uint8 {
