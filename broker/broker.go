@@ -103,8 +103,9 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				upperBound = (i + 1) * sectionHeight
 			}
 			res := responses[i]
-			resWorld := stubs.Decode(res.BitMap, sectionHeight, fullWorldWidth)
+			resWorld := stubs.Decode(res.BitMap, upperBound-(i*sectionHeight), fullWorldWidth)
 			for row := i * sectionHeight; row < upperBound; row++ {
+				// fmt.Println(row, row-(i*sectionHeight))
 				newWorld[row] = resWorld[row-(i*sectionHeight)]
 			}
 		}
