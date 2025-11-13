@@ -44,64 +44,90 @@ func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, respo
 }
 
 func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.ClientResponse) (err error) {
-	// Split up world, call worker methods, recollect
+
+	//Preamble
+	//------------------------------------------------------------------
+	// Initialise variables to pass into workers
 	sectionHeight := request.H / len(globalWorkers)
 	h := request.EndY - request.StartY
 	w := request.EndX - request.StartX
+	var wg sync.WaitGroup
+	turn := 0
+	newWorld := make([][]uint8, h)
+	responses := make([]*stubs.BrokerResponse, len(globalWorkers))
 
+	// Initialise global variables for tracking state
 	mu.Lock()
 	globalCompletedTurns = 0
 	globalWorld = stubs.Decode(request.BitMap, h, w)
 	quitting = false
 	mu.Unlock()
+	//------------------------------------------------------------------
 
-	var wg sync.WaitGroup
-	turn := 0
-	for turn < request.Turns && !quitting {
-		newWorld := make([][]uint8, h)
-		responses := make([]*stubs.BrokerResponse, len(globalWorkers))
-		for i := range globalWorkers {
-			var upperBound int
-			if i == len(globalWorkers)-1 {
-				upperBound = request.H
+	// Iterate over workers, call worker methods
+	for i := range globalWorkers {
+		// Calculate which workers are neighbours with each other to facilitate halo exchange.
+		var neighbours []string
+		if len(globalWorkers) == 1 {
+			neighbours = make([]string, 0)
+
+		} else if len(globalWorkers) == 2 {
+			neighbours = make([]string, 1)
+			neighbours = append(neighbours, globalWorkers[(i+1)%2])
+
+		} else {
+			neighbours = make([]string, 2)
+			next := globalWorkers[(i+1)%len(globalWorkers)]
+			var prev string
+			if i == (0) {
+				prev = globalWorkers[len(globalWorkers)-1]
 			} else {
-				upperBound = (i + 1) * sectionHeight
+				prev = globalWorkers[i-1]
 			}
-
-			wg.Add(1)
-			go func(i, upperBound int) {
-				defer wg.Done()
-				client, err := rpc.Dial("tcp", globalWorkers[i])
-				if err != nil {
-					fmt.Println(err)
-				}
-				defer client.Close()
-				req := stubs.BrokerRequest{
-					Turns:   request.Turns,
-					StartY:  i * sectionHeight,
-					EndY:    upperBound,
-					StartX:  request.StartX,
-					EndX:    request.EndX,
-					H:       request.H,
-					BitMap:  stubs.Encode(globalWorld, h, w),
-					Threads: globalThreads}
-				responses[i] = new(stubs.BrokerResponse)
-				client.Call(loop, &req, &responses[i])
-			}(i, upperBound)
+			neighbours = append(neighbours, prev, next)
 
 		}
-		wg.Wait()
+		var upperBound int
+		if i == len(globalWorkers)-1 {
+			upperBound = request.H
+		} else {
+			upperBound = (i + 1) * sectionHeight
+		}
 
-		mu.Lock()
-		// Need to fix this section to ensure that they are appending it correctly
-		for i := range globalWorkers {
-			res := responses[i]
-			h := res.EndY - res.StartY
-			w := request.EndX - request.StartX
-			workerWorld := stubs.Decode(res.BitMap, h, w)
-			for row := res.StartY; row < res.EndY; row++ {
-				newWorld[row] = workerWorld[row-res.StartY]
+		wg.Add(1)
+		go func(i, upperBound int) {
+			defer wg.Done()
+			client, err := rpc.Dial("tcp", globalWorkers[i])
+			if err != nil {
+				fmt.Println(err)
 			}
+			defer client.Close()
+			req := stubs.BrokerRequest{
+				Turns:      request.Turns,
+				StartY:     i * sectionHeight,
+				EndY:       upperBound,
+				StartX:     request.StartX,
+				EndX:       request.EndX,
+				H:          request.H,
+				BitMap:     stubs.Encode(globalWorld, h, w),
+				Threads:    globalThreads,
+				Neighbours: neighbours}
+			responses[i] = new(stubs.BrokerResponse)
+			client.Call(loop, &req, &responses[i])
+		}(i, upperBound)
+
+	}
+	wg.Wait()
+
+	mu.Lock()
+	// Need to fix this section to ensure that they are appending it correctly
+	for i := range globalWorkers {
+		res := responses[i]
+		h := res.EndY - res.StartY
+		w := request.EndX - request.StartX
+		workerWorld := stubs.Decode(res.BitMap, h, w)
+		for row := res.StartY; row < res.EndY; row++ {
+			newWorld[row] = workerWorld[row-res.StartY]
 		}
 
 		globalWorld = newWorld
