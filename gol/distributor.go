@@ -38,7 +38,7 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 		case keyPress := <-c.keyPressesChan:
 			switch keyPress {
 			case 'q':
-				request := stubs.BrokerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+				request := stubs.BrokerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w}
 				response := new(stubs.BrokerResponse)
 				client.Call(brokerQuitter, request, response)
 
@@ -62,9 +62,10 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 				outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
 				c.ioCommand <- ioOutput
 				c.ioFilename <- outputFileName
-				for i := range response.World {
+				savedWorld := stubs.Decode(response.BitMap, h, w)
+				for i := range savedWorld {
 					for j := 0; j < w; j++ {
-						c.ioOutput <- response.World[i][j]
+						c.ioOutput <- savedWorld[i][j]
 					}
 				}
 
@@ -74,7 +75,7 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 
 				// Need to add something here to deal with logic on client side
 			case 'k':
-				request := stubs.BrokerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w, H: h}
+				request := stubs.BrokerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w}
 				response := new(stubs.BrokerResponse)
 				client.Call(brokerKiller, request, response)
 			}
@@ -120,18 +121,21 @@ func distributor(p Params, c distributorChannels) {
 	// TODO: Execute all turns of the Game of Life.
 	// server := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
 	// flag.Parse()
-	broker := "127.0.0.1:8030"
+	broker := "3.237.18.107"
+	broker = "127.0.0.1"
+	port := "8030"
+	broker = broker + ":" + port
 
 	//TODO: connect to the RPC server and send the request(s)
 	client, _ := rpc.Dial("tcp", broker)
 	defer client.Close()
 
-	request := stubs.ClientRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, H: h, World: world}
+	request := stubs.ClientRequest{Turns: p.Turns, StartY: 0, EndY: h, StartX: 0, EndX: w, BitMap: stubs.Encode(world, h, w)}
 	response := new(stubs.ClientResponse)
 
 	go handleTicker(ticker, done, client, c, h, w, false, fileName)
 	client.Call(scheduleWork, request, response)
-	world = response.World
+	world = stubs.Decode(response.BitMap, h, w)
 
 	c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}
 
