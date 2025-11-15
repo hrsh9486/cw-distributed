@@ -21,6 +21,12 @@ var pausing bool
 var mu sync.Mutex
 var isKilled bool
 
+func (Game GameOfLife) Pulse(request stubs.PulseRequest, response *stubs.PulseResponse) (err error) {
+	fmt.Println("Recieved pulse:", request.Alive)
+	response.Alive = true
+	return
+}
+
 // Calculate a certain number of game of life states
 func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
 	// quitting = false
@@ -31,7 +37,6 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 
 	threads := request.Threads
 	workerHeight := (request.EndY - request.StartY) / threads
-
 	if threads == 1 {
 		world = calculateNextState(request.StartY, request.EndY, 0, request.FullWorldWidth, world)
 	} else {

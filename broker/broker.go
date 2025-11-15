@@ -16,6 +16,7 @@ import (
 
 // Functions to be called by the broker to access worker methods
 var loop = "GameOfLife.Loop"
+var pulse = "GameOfLife.Pulse"
 
 // var saver = "GameOfLife.Saver"
 // var quitter = "GameOfLife.Quitter"
@@ -27,7 +28,8 @@ var mu sync.Mutex
 type Broker struct {
 }
 
-var globalWorkers []string
+// var globalWorkers []string
+var globalWorkers = make(map[string]bool)
 var globalWorld [][]uint8
 var globalCompletedTurns int
 var globalAliveCells []util.Cell
@@ -36,7 +38,8 @@ var quitting bool
 
 func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, response *stubs.WorkerConnectionResponse) (err error) {
 	mu.Lock()
-	globalWorkers = append(globalWorkers, request.Address)
+	globalWorkers[request.Address] = true
+	// globalWorkers = append(globalWorkers, request.Address)
 	mu.Unlock()
 	return
 
@@ -47,7 +50,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 	fullWorldHeight := request.EndY - request.StartY
 	fullWorldWidth := request.EndX - request.StartX
-	sectionHeight := fullWorldHeight / len(globalWorkers)
+	// sectionHeight := fullWorldHeight / len(globalWorkers)
 	mu.Lock()
 	globalCompletedTurns = 0
 	globalWorld = stubs.Decode(request.BitMap, fullWorldHeight, fullWorldWidth)
@@ -55,80 +58,135 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 	quitting = false
 	mu.Unlock()
 
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
 	turn := 0
 	for turn < request.Turns && !quitting {
-		newWorld := make([][]uint8, fullWorldHeight)
-		responses := make([]*stubs.BrokerResponse, len(globalWorkers))
-		for i := range globalWorkers {
-			var upperBound int
-			if i == len(globalWorkers)-1 {
-				upperBound = len(globalWorld)
-			} else {
-				upperBound = (i + 1) * sectionHeight
+		// newWorld := make([][]uint8, fullWorldHeight)
+		// responses := make([]*stubs.BrokerResponse, len(globalWorkers))
+		// received := make([]int, len(globalWorkers))
+		numberOfWorkers := len(globalWorkers)
+
+		pulseResponse := make([]stubs.PulseResponse, numberOfWorkers)
+		fmt.Println("globalWorkers", globalWorkers, "len:", numberOfWorkers)
+		workerNumber := 0
+		for address := range globalWorkers {
+			// Create a pulse stub and response
+			pulseReq := stubs.PulseRequest{Alive: true}
+			pulseRes := pulseResponse[workerNumber]
+
+			// Connect to one client, and see if they're alive
+			client, err := rpc.Dial("tcp", address)
+			if err != nil {
+				delete(globalWorkers, address)
+				// YOU NEED TO CONTINUE NO MATTER WHAT
+				continue
+			}
+			defer client.Close()
+
+			// Send pulse to client
+			client.Call(pulse, pulseReq, pulseRes)
+			fmt.Println("resAlive:", pulseRes.Alive)
+			// I'm not sure if the following code actually does something but will see
+			// They should be alive if you recieve something, so far we recieve false
+			if pulseRes.Alive != false {
+				fmt.Println("Something failed")
+				continue
 			}
 
-			wg.Add(1)
-			go func(i, upperBound int) {
-				defer wg.Done()
-				client, err := rpc.Dial("tcp", globalWorkers[i])
-				if err != nil {
-					fmt.Println(err)
-				}
-				defer client.Close()
-				req := stubs.BrokerRequest{
-					StartY:          i * sectionHeight,
-					EndY:            upperBound,
-					StartX:          request.StartX,
-					EndX:            request.EndX,
-					FullWorldHeight: fullWorldHeight,
-					FullWorldWidth:  fullWorldHeight,
-					Threads:         globalThreads,
-					BitMap:          stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)}
+			// Now we actually send the game of life over
 
-				responses[i] = new(stubs.BrokerResponse)
-				client.Call(loop, &req, &responses[i])
-
-			}(i, upperBound)
-
+			// Increment the worker number to access the response array
+			workerNumber = workerNumber + 1
 		}
-		wg.Wait()
-
-		mu.Lock()
-		// Need to fix this section to ensure that they are appending it correctly
-		for i := range globalWorkers {
-			var upperBound int
-			if i == len(globalWorkers)-1 {
-				upperBound = len(globalWorld)
-			} else {
-				upperBound = (i + 1) * sectionHeight
-			}
-			res := responses[i]
-			resWorld := stubs.Decode(res.BitMap, upperBound-(i*sectionHeight), fullWorldWidth)
-			for row := i * sectionHeight; row < upperBound; row++ {
-				newWorld[row] = resWorld[row-(i*sectionHeight)]
-			}
-		}
-
-		globalWorld = newWorld
-		globalCompletedTurns += 1
-		globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
-		mu.Unlock()
-		turn++
 	}
 
-	mu.Lock()
-	if request.Turns == 0 {
-		response.CompletedTurns = 0
-		response.BitMap = request.BitMap
-		response.AliveCells = getAliveCells(fullWorldHeight, fullWorldWidth, stubs.Decode(request.BitMap, fullWorldHeight, fullWorldWidth))
-	} else {
-		response.CompletedTurns = globalCompletedTurns
-		response.BitMap = stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)
-		response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
-	}
-	mu.Unlock()
+	// 	fmt.Println("recieved", i)
+	// 	var upperBound int
+	// 	if i == len(globalWorkers)-1 {
+	// 		upperBound = len(globalWorld)
+	// 	} else {
+	// 		upperBound = (i + 1) * sectionHeight
+	// 	}
+
+	// 	wg.Add(1)
+	// 	go func(i, upperBound int) {
+	// 		defer wg.Done()
+	// 		client, err := rpc.Dial("tcp", globalWorkers[i])
+	// 		if err != nil {
+	// 			fmt.Println("Here is the err:::")
+	// 			fmt.Println(err)
+	// 		}
+	// 		defer client.Close()
+	// 		req := stubs.BrokerRequest{
+	// 			StartY:          i * sectionHeight,
+	// 			EndY:            upperBound,
+	// 			StartX:          request.StartX,
+	// 			EndX:            request.EndX,
+	// 			FullWorldHeight: fullWorldHeight,
+	// 			FullWorldWidth:  fullWorldHeight,i
+	// 			Threads:         globalThreads,
+	// 			BitMap:          stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)}
+
+	// 		responses[i] = new(stubs.BrokerResponse)
+	// 		client.Call(loop, &req, &responses[i])
+	// 		fmt.Println("bitmap:", responses[i].BitMap)
+	// 		if responses[i] == nil {
+	// 			for {
+	// 				fmt.Println("something died")
+	// 			}
+	// 		}
+	// 		if responses[i] == nil {
+	// 			for {
+	// 				fmt.Println("something died")
+	// 			}
+	// 		}
+	// 	}(i, upperBound)
+
+	// }
+
+	// for i := range responses {
+	// 	if responses[i] == nil {
+	// 		for {
+	// 			fmt.Println("something died")
+	// 		}
+	// 	}
+	// }
+	// wg.Wait()
+
+	// mu.Lock()
+	// // Need to fix this section to ensure that they are appending it correctly
+	// for i := range globalWorkers {
+	// 	var upperBound int
+	// 	if i == len(globalWorkers)-1 {
+	// 		upperBound = len(globalWorld)
+	// 	} else {
+	// 		upperBound = (i + 1) * sectionHeight
+	// 	}
+	// 	res := responses[i]
+	// 	resWorld := stubs.Decode(res.BitMap, upperBound-(i*sectionHeight), fullWorldWidth)
+	// 	for row := i * sectionHeight; row < upperBound; row++ {
+	// 		newWorld[row] = resWorld[row-(i*sectionHeight)]
+	// 	}
+	// }
+
+	// globalWorld = newWorld
+	// globalCompletedTurns += 1
+	// globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
+	// mu.Unlock()
+	// turn++
+
+	// mu.Lock()
+	// if request.Turns == 0 {
+	// 	response.CompletedTurns = 0
+	// 	response.BitMap = request.BitMap
+	// 	response.AliveCells = getAliveCells(fullWorldHeight, fullWorldWidth, stubs.Decode(request.BitMap, fullWorldHeight, fullWorldWidth))
+	// } else {
+	// 	response.CompletedTurns = globalCompletedTurns
+	// 	response.BitMap = stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)
+	// 	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
+	// }
+	// mu.Unlock()
 	return
 }
 

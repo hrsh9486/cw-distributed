@@ -47,6 +47,14 @@ type BrokerResponse struct {
 	EndY           int
 }
 
+type PulseRequest struct {
+	Alive bool
+}
+
+type PulseResponse struct {
+	Alive bool
+}
+
 //-------------------------------------------------------------------------------
 
 // Request and response for client to access broker
