@@ -28,13 +28,13 @@ func (Game GameOfLife) Pulse(request stubs.PulseRequest, response *stubs.PulseRe
 }
 
 // Calculate a certain number of game of life states
-func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
+func (Game *GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
 	// quitting = false
 	// pausing = false
 	// isKilled = false
 	// turn := 0
+	// fmt.Println("request: ", request.StartY, request.EndY, request.StartX, request.EndX, request.FullWorldHeight, request.FullWorldWidth)
 	world := stubs.Decode(request.BitMap, request.FullWorldHeight, request.FullWorldWidth)
-
 	threads := request.Threads
 	workerHeight := (request.EndY - request.StartY) / threads
 	if threads == 1 {
@@ -43,7 +43,6 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 		outputChannelList := make([]chan [][]uint8, threads)
 		for i := range outputChannelList {
 			outputChannelList[i] = make(chan [][]uint8)
-
 		}
 		for i := 0; i < threads; i++ {
 			var upperBound int
@@ -64,6 +63,7 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 		world = newWorld
 	}
 	response.BitMap = stubs.Encode(world, request.EndY-request.StartY, request.EndX-request.StartX)
+	// fmt.Println("response.Bitmap:", response.BitMap)
 	return
 
 }
@@ -97,6 +97,7 @@ func worker(startY, endY, startX, endX int, world [][]uint8, outputChan chan [][
 func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uint8 {
 	w := len(world[0])
 	h := len(world)
+	println("size", endY-startY)
 	newWorld := make([][]uint8, endY-startY)
 
 	// Populate outer slice, with empty inner slices.

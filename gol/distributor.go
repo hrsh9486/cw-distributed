@@ -134,9 +134,11 @@ func distributor(p Params, c distributorChannels) {
 	response := new(stubs.ClientResponse)
 
 	go handleTicker(ticker, done, client, c, h, w, false, fileName)
+	// fmt.Println("request.bitmap", request.BitMap)
 	client.Call(scheduleWork, request, response)
+	// fmt.Println("response.bitmap", response.BitMap)
 	world = stubs.Decode(response.BitMap, h, w)
-
+	// fmt.Println("The World", world)
 	c.events <- FinalTurnComplete{response.CompletedTurns, response.AliveCells}
 
 	outputFileName := fileName + "x" + strconv.Itoa(response.CompletedTurns)
