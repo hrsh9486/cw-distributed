@@ -69,6 +69,29 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				upperBound = (i + 1) * sectionHeight
 			}
 
+			var aboveIndex int
+			var belowIndex int
+
+			switch i {
+			case 0:
+				aboveIndex = fullWorldHeight - 1
+				belowIndex = upperBound
+			case len(globalWorkers) - 1:
+				aboveIndex = i*sectionHeight - 1
+				belowIndex = 0
+			default:
+				aboveIndex = i*sectionHeight - 1
+				belowIndex = upperBound
+			}
+
+			// Construct a copy of the relevant section of the world, while also including a halo of one row above and below.
+			passWorld := make([][]uint8, 1)
+			passWorld[0] = globalWorld[aboveIndex]
+			for y := sectionHeight * i; y < upperBound; y++ {
+				passWorld = append(passWorld, globalWorld[y])
+			}
+			passWorld = append(passWorld, globalWorld[belowIndex])
+
 			wg.Add(1)
 			go func(i, upperBound int) {
 				defer wg.Done()
@@ -77,15 +100,18 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 					fmt.Println(err)
 				}
 				defer client.Close()
+
+				// Here I want to adjust passing the full world into passing only the relevant section, + 2 rows
+
 				req := stubs.BrokerRequest{
-					StartY:          i * sectionHeight,
-					EndY:            upperBound,
-					StartX:          request.StartX,
-					EndX:            request.EndX,
-					FullWorldHeight: fullWorldHeight,
-					FullWorldWidth:  fullWorldHeight,
-					Threads:         globalThreads,
-					BitMap:          stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)}
+					StartY:        i * sectionHeight,
+					EndY:          upperBound,
+					StartX:        request.StartX,
+					EndX:          request.EndX,
+					SectionHeight: upperBound - (i * sectionHeight) + 2,
+					SectionWidth:  fullWorldWidth,
+					Threads:       globalThreads,
+					BitMap:        stubs.Encode(passWorld, upperBound-(i*sectionHeight)+2, fullWorldWidth)}
 
 				responses[i] = new(stubs.BrokerResponse)
 				client.Call(loop, &req, &responses[i])

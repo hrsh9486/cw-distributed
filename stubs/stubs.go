@@ -29,14 +29,14 @@ type WorkerConnectionResponse struct {
 
 type BrokerRequest struct {
 	// Probably need to pass in turns, worker number, board, etc.
-	StartY          int
-	EndY            int
-	StartX          int
-	EndX            int
-	FullWorldHeight int
-	FullWorldWidth  int
-	BitMap          []byte
-	Threads         int
+	StartY        int
+	EndY          int
+	StartX        int
+	EndX          int
+	SectionHeight int
+	SectionWidth  int
+	BitMap        []byte
+	Threads       int
 }
 
 type BrokerResponse struct {

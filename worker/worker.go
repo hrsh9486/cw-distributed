@@ -27,37 +27,9 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	// pausing = false
 	// isKilled = false
 	// turn := 0
-	world := stubs.Decode(request.BitMap, request.FullWorldHeight, request.FullWorldWidth)
+	world := stubs.Decode(request.BitMap, request.SectionHeight, request.SectionWidth)
 
-	threads := request.Threads
-	workerHeight := (request.EndY - request.StartY) / threads
-
-	if threads == 1 {
-		world = calculateNextState(request.StartY, request.EndY, 0, request.FullWorldWidth, world)
-	} else {
-		outputChannelList := make([]chan [][]uint8, threads)
-		for i := range outputChannelList {
-			outputChannelList[i] = make(chan [][]uint8)
-
-		}
-		for i := 0; i < threads; i++ {
-			var upperBound int
-			if i == threads-1 {
-				upperBound = request.EndY
-			} else {
-				upperBound = request.StartY + (i+1)*workerHeight
-			}
-			go worker(request.StartY+i*workerHeight, upperBound, 0, request.FullWorldWidth, world, outputChannelList[i])
-
-		}
-		// Recombine result of parallel execution in new slice
-		var newWorld [][]uint8
-		for i := 0; i < threads; i++ {
-			newWorld = append(newWorld, <-outputChannelList[i]...)
-		}
-
-		world = newWorld
-	}
+	world = calculateNextState(request.SectionHeight-2, world)
 	response.BitMap = stubs.Encode(world, request.EndY-request.StartY, request.EndX-request.StartX)
 	return
 
@@ -84,55 +56,52 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 // 	return
 // }
 
-func worker(startY, endY, startX, endX int, world [][]uint8, outputChan chan [][]uint8) {
-	outputChan <- calculateNextState(startY, endY, startX, endX, world)
+func worker(sectionHeight int, world [][]uint8, outputChan chan [][]uint8) {
+	outputChan <- calculateNextState(sectionHeight, world)
 }
 
 // Take a broker state and iteratively calculate the next state for a section of the board
-func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uint8 {
+func calculateNextState(sectionHeight int, world [][]uint8) [][]uint8 {
 	w := len(world[0])
-	h := len(world)
-	newWorld := make([][]uint8, endY-startY)
+	newWorld := make([][]uint8, sectionHeight)
 
 	// Populate outer slice, with empty inner slices.
 	for i := range newWorld {
 		newWorld[i] = make([]uint8, w)
 	}
 
-	for y := startY; y < endY; y++ {
-		for x := startX; x < endX; x++ {
+	for y := 1; y < sectionHeight+1; y++ {
+		for x := 0; x < w; x++ {
 			// Check how many of the current cell's neighbours are alive
 
 			currentCell := world[y][x]
-			neighboursAlive := (world[(y+h-1)%h][(x+w-1)%w] / 255) +
-				(world[(y+h-1)%h][(x+w)%w] / 255) +
-				(world[(y+h-1)%h][(x+w+1)%w] / 255) +
-				(world[(y+h)%h][(x+w-1)%w] / 255) +
-				(world[(y+h)%h][(x+w+1)%w] / 255) +
-				(world[(y+h+1)%h][(x+w-1)%w] / 255) +
-				(world[(y+h+1)%h][(x+w)%w] / 255) +
-				(world[(y+h+1)%h][(x+w+1)%w] / 255)
+			neighboursAlive := (world[y-1][(x+w-1)%w] / 255) +
+				(world[y-1][(x+w)%w] / 255) +
+				(world[y-1][(x+w+1)%w] / 255) +
+				(world[y][(x+w-1)%w] / 255) +
+				(world[y][(x+w+1)%w] / 255) +
+				(world[y+1][(x+w-1)%w] / 255) +
+				(world[y+1][(x+w)%w] / 255) +
+				(world[y+1][(x+w+1)%w] / 255)
 
 			// Logic for current cell
 			var alive uint8 = 255
 			var dead uint8 = 0
-			offsetY := y - startY
-			offsetX := x - startX
 
 			if currentCell == alive {
 				if neighboursAlive < 2 {
-					newWorld[offsetY][offsetX] = dead
+					newWorld[y-1][x] = dead
 				} else if neighboursAlive > 3 {
-					newWorld[offsetY][offsetX] = dead
+					newWorld[y-1][x] = dead
 				} else if neighboursAlive == 2 || neighboursAlive == 3 {
-					newWorld[offsetY][offsetX] = currentCell
+					newWorld[y-1][x] = currentCell
 
 				}
 			} else {
 				if neighboursAlive == 3 {
-					newWorld[offsetY][offsetX] = alive
+					newWorld[y-1][x] = alive
 				} else {
-					newWorld[offsetY][offsetX] = currentCell
+					newWorld[y-1][x] = currentCell
 				}
 			}
 		}
