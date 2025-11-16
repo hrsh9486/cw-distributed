@@ -101,6 +101,9 @@ type SaverResponse struct {
 type KillerRequest struct{}
 type KillerResponse struct{}
 
+type PulseRequest struct{ Alive bool }
+type PulseResponse struct{ Alive bool }
+
 //-------------------------------------------------------------------------------
 
 func Encode(game [][]uint8, h, w int) []byte {

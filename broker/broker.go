@@ -16,6 +16,7 @@ import (
 
 // Functions to be called by the broker to access worker methods
 var loop = "GameOfLife.Loop"
+var pulse = "GameOfLife.Pulse"
 
 // var saver = "GameOfLife.Saver"
 // var quitter = "GameOfLife.Quitter"
@@ -29,6 +30,7 @@ type Broker struct {
 
 var globalWorkers []string
 var globalWorld [][]uint8
+var cachedWorld [][]uint8
 var globalCompletedTurns int
 var globalAliveCells []util.Cell
 var globalThreads int
@@ -51,6 +53,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 	mu.Lock()
 	globalCompletedTurns = 0
 	globalWorld = stubs.Decode(request.BitMap, fullWorldHeight, fullWorldWidth)
+	cachedWorld = globalWorld
 	globalAliveCells = getAliveCells(fullWorldHeight, fullWorldWidth, globalWorld)
 	quitting = false
 	mu.Unlock()
@@ -59,8 +62,36 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 	turn := 0
 	for turn < request.Turns && !quitting {
+		if (turn % 5) == 0 {
+			cachedWorld = globalWorld
+		}
 		newWorld := make([][]uint8, fullWorldHeight)
 		responses := make([]*stubs.BrokerResponse, len(globalWorkers))
+		pulseResponse := make([]stubs.PulseResponse, len(globalWorkers))
+		workerCrashed := false
+		aliveWorkers := make([]string, 0, len(globalWorkers))
+		for i := range globalWorkers {
+			pulseReq := stubs.PulseRequest{Alive: true}
+			pulseRes := pulseResponse[i]
+
+			client, err := rpc.Dial("tcp", globalWorkers[i])
+			if err != nil {
+				fmt.Println("Worker dead while connecting:", globalWorkers[i])
+				continue
+			}
+
+			err = client.Call(pulse, pulseReq, &pulseRes)
+			if err == nil {
+				aliveWorkers = append(aliveWorkers, globalWorkers[i])
+			} else {
+				// fmt.Println(err)
+				fmt.Println("Worker dead while pulsing:", globalWorkers[i])
+				continue
+			}
+		}
+
+		globalWorkers = aliveWorkers
+
 		for i := range globalWorkers {
 			var upperBound int
 			if i == len(globalWorkers)-1 {
@@ -74,7 +105,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				defer wg.Done()
 				client, err := rpc.Dial("tcp", globalWorkers[i])
 				if err != nil {
-					fmt.Println(err)
+					fmt.Println("new Error", err)
 				}
 				defer client.Close()
 				req := stubs.BrokerRequest{
@@ -88,34 +119,46 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 					BitMap:          stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)}
 
 				responses[i] = new(stubs.BrokerResponse)
-				client.Call(loop, &req, &responses[i])
-
+				err = client.Call(loop, &req, &responses[i])
+				// fmt.Println()
+				if err != nil {
+					fmt.Println("here is the error")
+					workerCrashed = true
+				}
 			}(i, upperBound)
-
 		}
 		wg.Wait()
 
-		mu.Lock()
-		// Need to fix this section to ensure that they are appending it correctly
-		for i := range globalWorkers {
-			var upperBound int
-			if i == len(globalWorkers)-1 {
-				upperBound = len(globalWorld)
-			} else {
-				upperBound = (i + 1) * sectionHeight
+		if workerCrashed {
+			if len(globalWorkers) == 1 {
+				break
 			}
-			res := responses[i]
-			resWorld := stubs.Decode(res.BitMap, upperBound-(i*sectionHeight), fullWorldWidth)
-			for row := i * sectionHeight; row < upperBound; row++ {
-				newWorld[row] = resWorld[row-(i*sectionHeight)]
+			fmt.Println("lol crashed")
+			globalWorld = cachedWorld
+			// fmt.Println("Doing something to the turn")
+		} else {
+			mu.Lock()
+			// Need to fix this section to ensure that they are appending it correctly
+			for i := range globalWorkers {
+				var upperBound int
+				if i == len(globalWorkers)-1 {
+					upperBound = len(globalWorld)
+				} else {
+					upperBound = (i + 1) * sectionHeight
+				}
+				res := responses[i]
+				resWorld := stubs.Decode(res.BitMap, upperBound-(i*sectionHeight), fullWorldWidth)
+				for row := i * sectionHeight; row < upperBound; row++ {
+					newWorld[row] = resWorld[row-(i*sectionHeight)]
+				}
 			}
-		}
 
-		globalWorld = newWorld
-		globalCompletedTurns += 1
-		globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
-		mu.Unlock()
-		turn++
+			globalWorld = newWorld
+			globalCompletedTurns += 1
+			globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
+			mu.Unlock()
+			turn++
+		}
 	}
 
 	mu.Lock()
