@@ -33,10 +33,14 @@ var globalCompletedTurns int
 var globalAliveCells []util.Cell
 var globalThreads int
 var quitting bool
+var numWorkers int
+var workerIDs []int
 
 func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, response *stubs.WorkerConnectionResponse) (err error) {
 	mu.Lock()
+	numWorkers += 1
 	globalWorkers = append(globalWorkers, request.Address)
+	workerIDs = append(workerIDs, numWorkers)
 	mu.Unlock()
 	return
 
@@ -49,6 +53,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 	fullWorldWidth := request.EndX - request.StartX
 	sectionHeight := fullWorldHeight / len(globalWorkers)
 	mu.Lock()
+	numWorkers = 0
 	globalCompletedTurns = 0
 	globalWorld = stubs.Decode(request.BitMap, fullWorldHeight, fullWorldWidth)
 	globalAliveCells = getAliveCells(fullWorldHeight, fullWorldWidth, globalWorld)
@@ -57,66 +62,96 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 	var wg sync.WaitGroup
 
-	turn := 0
-	for turn < request.Turns && !quitting {
-		newWorld := make([][]uint8, fullWorldHeight)
-		responses := make([]*stubs.BrokerResponse, len(globalWorkers))
-		for i := range globalWorkers {
-			var upperBound int
-			if i == len(globalWorkers)-1 {
-				upperBound = len(globalWorld)
-			} else {
-				upperBound = (i + 1) * sectionHeight
-			}
-
-			wg.Add(1)
-			go func(i, upperBound int) {
-				defer wg.Done()
-				client, err := rpc.Dial("tcp", globalWorkers[i])
-				if err != nil {
-					fmt.Println(err)
-				}
-				defer client.Close()
-				req := stubs.BrokerRequest{
-					StartY:          i * sectionHeight,
-					EndY:            upperBound,
-					StartX:          request.StartX,
-					EndX:            request.EndX,
-					FullWorldHeight: fullWorldHeight,
-					FullWorldWidth:  fullWorldHeight,
-					Threads:         globalThreads,
-					BitMap:          stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)}
-
-				responses[i] = new(stubs.BrokerResponse)
-				client.Call(loop, &req, &responses[i])
-
-			}(i, upperBound)
-
+	newWorld := make([][]uint8, fullWorldHeight)
+	responses := make([]*stubs.BrokerResponse, len(globalWorkers))
+	for i := range globalWorkers {
+		var upperBound int
+		// Set up bounds for board area that workers access
+		if i == len(globalWorkers)-1 {
+			upperBound = len(globalWorld)
+		} else {
+			upperBound = (i + 1) * sectionHeight
 		}
-		wg.Wait()
 
-		mu.Lock()
-		// Need to fix this section to ensure that they are appending it correctly
-		for i := range globalWorkers {
-			var upperBound int
-			if i == len(globalWorkers)-1 {
-				upperBound = len(globalWorld)
+		// Tell workers who their neighbours are for halo exchange
+		var neighbours []string
+		var neighbourIDs []int
+		if len(globalWorkers) == 1 {
+			neighbours = []string{}
+			neighbourIDs = []int{}
+		} else {
+			prev := (i - 1 + len(globalWorkers)) % len(globalWorkers)
+			next := (i + 1) % len(globalWorkers)
+
+			mu.Lock()
+			if prev == next {
+				neighbours = []string{globalWorkers[next]}
+				neighbourIDs = []int{workerIDs[next]}
 			} else {
-				upperBound = (i + 1) * sectionHeight
+				neighbours = []string{globalWorkers[prev], globalWorkers[next]}
+				neighbourIDs = []int{workerIDs[prev], workerIDs[next]}
 			}
-			res := responses[i]
-			resWorld := stubs.Decode(res.BitMap, upperBound-(i*sectionHeight), fullWorldWidth)
-			for row := i * sectionHeight; row < upperBound; row++ {
-				newWorld[row] = resWorld[row-(i*sectionHeight)]
+			mu.Unlock()
+		}
+
+		// Split up world to pass relevant section to workers
+		worldSection := make([][]uint8, upperBound-i*sectionHeight)
+		for yVar := i * sectionHeight; yVar < upperBound; yVar++ {
+			worldSection[yVar-i*sectionHeight] = make([]uint8, fullWorldWidth)
+			for xVar := 0; xVar < fullWorldWidth; xVar++ {
+				worldSection[yVar-i*sectionHeight][xVar] = globalWorld[yVar][xVar]
 			}
 		}
 
-		globalWorld = newWorld
-		globalCompletedTurns += 1
-		globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
-		mu.Unlock()
-		turn++
+		// RPC call to workers
+		wg.Add(1)
+		go func(i, upperBound int) {
+			defer wg.Done()
+			client, err := rpc.Dial("tcp", globalWorkers[i])
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer client.Close()
+			req := stubs.BrokerRequest{
+				StartY:          0,
+				EndY:            upperBound - i*sectionHeight,
+				StartX:          request.StartX,
+				EndX:            request.EndX,
+				Turns:           request.Turns,
+				FullWorldHeight: upperBound - i*sectionHeight,
+				FullWorldWidth:  fullWorldWidth,
+				Threads:         globalThreads,
+				BitMap:          stubs.Encode(worldSection, upperBound-i*sectionHeight, fullWorldWidth),
+				Neighbours:      neighbours,
+				NeighbourIDs:    neighbourIDs}
+
+			responses[i] = new(stubs.BrokerResponse)
+			client.Call(loop, &req, &responses[i])
+
+		}(i, upperBound)
 	}
+	wg.Wait()
+
+	mu.Lock()
+	// Need to fix this section to ensure that they are appending it correctly
+	for i := range globalWorkers {
+		var upperBound int
+		if i == len(globalWorkers)-1 {
+			upperBound = len(globalWorld)
+		} else {
+			upperBound = (i + 1) * sectionHeight
+		}
+		res := responses[i]
+		resWorld := stubs.Decode(res.BitMap, upperBound-(i*sectionHeight), fullWorldWidth)
+		for row := i * sectionHeight; row < upperBound; row++ {
+			newWorld[row] = resWorld[row-(i*sectionHeight)]
+		}
+	}
+
+	globalWorld = newWorld
+	globalCompletedTurns += 1
+	globalAliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, newWorld)
+	mu.Unlock()
 
 	mu.Lock()
 	if request.Turns == 0 {
@@ -134,8 +169,8 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 func (broker Broker) TickerService(request stubs.TickerRequest, response *stubs.TickerResponse) (err error) {
 	mu.Lock()
-	response.AliveCellsCount = len(getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld))
-	response.CompletedTurns = globalCompletedTurns
+	// Here I neeed to collect every alive cell etc. from each worker.:w
+
 	mu.Unlock()
 	return
 }

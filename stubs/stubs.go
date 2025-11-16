@@ -22,6 +22,14 @@ type WorkerConnectionRequest struct {
 type WorkerConnectionResponse struct {
 }
 
+type WorkerHaloRequest struct {
+	LastCompletedTurn int
+}
+
+type WorkerHaloResponse struct {
+	Row []uint8
+}
+
 //-------------------------------------------------------------------------------
 
 // Request and response for broker to call worker methods
@@ -33,10 +41,13 @@ type BrokerRequest struct {
 	EndY            int
 	StartX          int
 	EndX            int
+	Turns           int
 	FullWorldHeight int
 	FullWorldWidth  int
 	BitMap          []byte
 	Threads         int
+	Neighbours      []string
+	NeighbourIDs    []int
 }
 
 type BrokerResponse struct {
