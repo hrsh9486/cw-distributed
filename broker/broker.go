@@ -122,7 +122,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				err = client.Call(loop, &req, &responses[i])
 				// fmt.Println()
 				if err != nil {
-					fmt.Println("here is the error")
+					fmt.Println("Worker died while processing:", globalWorkers[i])
 					workerCrashed = true
 				}
 			}(i, upperBound)
@@ -133,7 +133,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 			if len(globalWorkers) == 1 {
 				break
 			}
-			fmt.Println("lol crashed")
+			fmt.Println("Going back to last saved turn")
 			globalWorld = cachedWorld
 			// fmt.Println("Doing something to the turn")
 		} else {

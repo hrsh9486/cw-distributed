@@ -33,6 +33,7 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	// pausing = false
 	// isKilled = false
 	// turn := 0
+	fmt.Println("Recieved: ", request.StartY, request.EndY, request.FullWorldHeight)
 	world := stubs.Decode(request.BitMap, request.FullWorldHeight, request.FullWorldWidth)
 
 	threads := request.Threads
