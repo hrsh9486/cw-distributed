@@ -46,7 +46,9 @@ func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, respo
 
 func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.ClientResponse) (err error) {
 	// Split up world, call worker methods, recollect
-
+	if len(globalWorkers) == 0 {
+		return
+	}
 	fullWorldHeight := request.EndY - request.StartY
 	fullWorldWidth := request.EndX - request.StartX
 	sectionHeight := fullWorldHeight / len(globalWorkers)
@@ -62,6 +64,9 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 	turn := 0
 	for turn < request.Turns && !quitting {
+		if len(globalWorkers) == 0 {
+			return
+		}
 		if (turn % 5) == 0 {
 			cachedWorld = globalWorld
 		}
@@ -105,7 +110,9 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				defer wg.Done()
 				client, err := rpc.Dial("tcp", globalWorkers[i])
 				if err != nil {
-					fmt.Println("new Error", err)
+					fmt.Println("Worker died trying to preconnect:", globalWorkers[i])
+					workerCrashed = true
+					return
 				}
 				defer client.Close()
 				req := stubs.BrokerRequest{
@@ -131,12 +138,21 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 		if workerCrashed {
 			if len(globalWorkers) == 1 {
-				break
+				return
 			}
 			fmt.Println("Going back to last saved turn")
 			globalWorld = cachedWorld
 			// fmt.Println("Doing something to the turn")
 		} else {
+			if len(globalWorkers) == 0 {
+				fmt.Println("point 1")
+				mu.Lock()
+				response.BitMap = stubs.Encode(cachedWorld, request.EndY-request.StartY, request.EndX-request.StartX)
+				response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
+				response.CompletedTurns = globalCompletedTurns
+				mu.Unlock()
+				return
+			}
 			mu.Lock()
 			// Need to fix this section to ensure that they are appending it correctly
 			for i := range globalWorkers {
