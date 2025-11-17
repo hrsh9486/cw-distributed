@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"net"
 	"net/rpc"
-	"sync"
 	"time"
 
 	"uk.ac.bris.cs/gameoflife/stubs"
@@ -16,18 +15,12 @@ import (
 type GameOfLife struct {
 }
 
-var quitting bool
+var killChan chan bool
 
-var pausing bool
-
-// var mu sync.Mutex
-var isKilled bool
-
-var mu sync.Mutex
-
-// var cond = sync.NewCond(&mu)
-
-// var globalTurn int
+func (Game GameOfLife) Killer(request stubs.WorkerConnectionRequest, response *stubs.WorkerConnectionResponse) (err error) {
+	killChan <- true
+	return
+}
 
 // Calculate a certain number of game of life states
 func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
@@ -70,28 +63,6 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 	return
 
 }
-
-// func (Game GameOfLife) Pauser(request stubs.PauserRequest, response *stubs.PauserResponse) (err error) {
-// 	fmt.Println("pauser is called")
-// 	mu.Lock()
-// 	pausing = !pausing
-// 	// response.CompletedTurns = globalTurn
-// 	mu.Unlock()
-// 	return
-// }
-
-// func (Game GameOfLife) Saver(request broker.SaverRequest, response *broker.SaverResponse) (err error) {
-// 	mu.Lock()
-// 	response.CompletedTurns = globalTurn
-// 	response.World = globalWorld
-// 	mu.Unlock()
-// 	return
-// }
-
-// func (Game GameOfLife) Killer(request broker.KillerRequest, response *broker.KillerResponse) (err error) {
-// 	isKilled = true
-// 	return
-// }
 
 func worker(startY, endY, startX, endX int, world [][]uint8, outputChan chan [][]uint8) {
 	outputChan <- calculateNextState(startY, endY, startX, endX, world)
@@ -147,8 +118,6 @@ func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uin
 		}
 	}
 
-	for pausing && !quitting {
-	}
 	return newWorld
 }
 
@@ -160,6 +129,7 @@ func main() {
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano())
 
+	killChan = make(chan bool)
 	var listenIP string
 	var registerIP string
 
@@ -199,8 +169,20 @@ func main() {
 	response := new(stubs.WorkerConnectionResponse)
 
 	client.Call("Broker.RegisterWorker", request, response)
+	go func() {
+		<-killChan
+		time.Sleep(1 * time.Second)
+		listener.Close()
+	}()
 
 	fmt.Println("Worker listening on", listenAddr)
-	rpc.Accept(listener)
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Worker exited gracefully")
+			return
+		}
+		go rpc.ServeConn(conn)
+	}
 
 }

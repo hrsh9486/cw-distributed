@@ -37,6 +37,8 @@ var globalAliveCells []util.Cell
 var globalThreads int
 var quitting bool
 var pausing bool
+var killChan chan bool
+var clients []*rpc.Client
 
 func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, response *stubs.WorkerConnectionResponse) (err error) {
 	mu.Lock()
@@ -61,6 +63,19 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 	var wg sync.WaitGroup
 
+	for i := range globalWorkers {
+		client, err := rpc.Dial("tcp", globalWorkers[i])
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		// cond.Broadcast()
+
+		defer client.Close()
+		mu.Lock()
+		clients = append(clients, client)
+		mu.Unlock()
+	}
 	turn := 0
 	for turn < request.Turns && !quitting {
 		newWorld := make([][]uint8, fullWorldHeight)
@@ -82,14 +97,6 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 			wg.Add(1)
 			go func(i, upperBound int) {
 				defer wg.Done()
-				client, err := rpc.Dial("tcp", globalWorkers[i])
-				if err != nil {
-					fmt.Println(err)
-				}
-
-				// cond.Broadcast()
-
-				defer client.Close()
 				req := stubs.BrokerRequest{
 					StartY:          i * sectionHeight,
 					EndY:            upperBound,
@@ -103,12 +110,20 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				}
 
 				responses[i] = new(stubs.BrokerResponse)
-				client.Call(loop, &req, &responses[i])
+				clients[i].Call(loop, &req, &responses[i])
 
 			}(i, upperBound)
 
 		}
 		wg.Wait()
+		if quitting {
+			mu.Lock()
+			response.CompletedTurns = globalCompletedTurns
+			response.BitMap = stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)
+			response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
+			mu.Unlock()
+			return
+		}
 
 		mu.Lock()
 		// Need to fix this section to ensure that they are appending it correctly
@@ -167,6 +182,28 @@ func (broker Broker) Quitter(request stubs.ClientRequest, response *stubs.Client
 	return
 }
 
+func (broker Broker) Killer(request stubs.ClientRequest, response *stubs.ClientResponse) (err error) {
+	mu.Lock()
+	pausing = false
+	cond.Broadcast()
+
+	// Gracefully shut down the broker and workers
+	response.BitMap = stubs.Encode(globalWorld, request.EndY-request.StartY, request.EndX-request.StartX)
+	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
+	response.CompletedTurns = globalCompletedTurns
+
+	quitting = true
+	for i := range clients {
+		req := stubs.WorkerConnectionRequest{}
+		res := stubs.WorkerConnectionResponse{}
+		clients[i].Call("GameOfLife.Killer", req, res)
+	}
+
+	killChan <- true
+	mu.Unlock()
+	return
+}
+
 func (broker Broker) Saver(request stubs.SaverRequest, response *stubs.SaverResponse) (err error) {
 	mu.Lock()
 	response.CompletedTurns = globalCompletedTurns
@@ -214,6 +251,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	globalThreads, _ = strconv.Atoi(*threads)
+	killChan = make(chan bool)
 
 	var listenIP string
 
@@ -237,6 +275,19 @@ func main() {
 		fmt.Println(err)
 	}
 	fmt.Println("Broker listening on port:", listenIP+":"+*pAddr)
-	rpc.Accept(listener)
-	listener.Close()
+	go func() {
+		<-killChan
+		time.Sleep(1 * time.Second)
+		listener.Close()
+	}()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Broker shut down gracefully")
+			return
+		}
+		go rpc.ServeConn(conn)
+
+	}
 }
