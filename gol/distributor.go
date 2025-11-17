@@ -119,11 +119,10 @@ func distributor(p Params, c distributorChannels) {
 	ticker := time.NewTicker(2 * time.Second)
 
 	c.events <- StateChange{0, Executing}
-	// TODO: Execute all turns of the Game of Life.
-	// server := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
-	// flag.Parse()
-	broker := "3.237.18.107"
-	broker = "127.0.0.1"
+
+	// To run on AWS, we need to update this variable to the public IP address of the broker EC2 instance
+	broker := "127.0.0.1"
+	// broker = "44.192.86.95"
 	port := "8030"
 	broker = broker + ":" + port
 

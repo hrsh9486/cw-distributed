@@ -63,6 +63,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 	var wg sync.WaitGroup
 
+	clients = make([]*rpc.Client, len(globalWorkers))
 	for i := range globalWorkers {
 		client, err := rpc.Dial("tcp", globalWorkers[i])
 		if err != nil {
@@ -73,7 +74,7 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 
 		defer client.Close()
 		mu.Lock()
-		clients = append(clients, client)
+		clients[i] = client
 		mu.Unlock()
 	}
 	turn := 0
