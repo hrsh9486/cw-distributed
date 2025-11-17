@@ -1,0 +1,8 @@
+goos: linux
+goarch: amd64
+pkg: uk.ac.bris.cs/gameoflife
+cpu: 12th Gen Intel(R) Core(TM) i7-12700H
+,results.out,
+,sec/op,CI
+Gol/Distributed-512x512x1000-1-20,6.046484937000001,2%
+geomean,6.046484937000002,

@@ -68,11 +68,64 @@ func worker(startY, endY, startX, endX int, world [][]uint8, outputChan chan [][
 	outputChan <- calculateNextState(startY, endY, startX, endX, world)
 }
 
-// Take a broker state and iteratively calculate the next state for a section of the board
+// // Take a broker state and iteratively calculate the next state for a section of the board
+// func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uint8 {
+// 	w := len(world[0])
+// 	h := len(world)
+// 	newWorld := make([][]uint8, endY-startY)
+
+// 	// Populate outer slice, with empty inner slices.
+// 	for i := range newWorld {
+// 		newWorld[i] = make([]uint8, w)
+// 	}
+
+// 	for y := startY; y < endY; y++ {
+// 		for x := startX; x < endX; x++ {
+// 			// Check how many of the current cell's neighbours are alive
+
+// 			currentCell := world[y][x]
+// 			neighboursAlive := (world[(y+h-1)%h][(x+w-1)%w] / 255) +
+// 				(world[(y+h-1)%h][(x+w)%w] / 255) +
+// 				(world[(y+h-1)%h][(x+w+1)%w] / 255) +
+// 				(world[(y+h)%h][(x+w-1)%w] / 255) +
+// 				(world[(y+h)%h][(x+w+1)%w] / 255) +
+// 				(world[(y+h+1)%h][(x+w-1)%w] / 255) +
+// 				(world[(y+h+1)%h][(x+w)%w] / 255) +
+// 				(world[(y+h+1)%h][(x+w+1)%w] / 255)
+
+// 			// Logic for current cell
+// 			var alive uint8 = 255
+// 			var dead uint8 = 0
+// 			offsetY := y - startY
+// 			offsetX := x - startX
+
+// 			if currentCell == alive {
+// 				if neighboursAlive < 2 {
+// 					newWorld[offsetY][offsetX] = dead
+// 				} else if neighboursAlive > 3 {
+// 					newWorld[offsetY][offsetX] = dead
+// 				} else if neighboursAlive == 2 || neighboursAlive == 3 {
+// 					newWorld[offsetY][offsetX] = currentCell
+
+// 				}
+// 			} else {
+// 				if neighboursAlive == 3 {
+// 					newWorld[offsetY][offsetX] = alive
+// 				} else {
+// 					newWorld[offsetY][offsetX] = currentCell
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	return newWorld
+// }
+
 func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uint8 {
-	w := len(world[0])
-	h := len(world)
+	w := endX - startX
 	newWorld := make([][]uint8, endY-startY)
+	worldEndY := len(world)
+	worldEndX := len(world[0])
 
 	// Populate outer slice, with empty inner slices.
 	for i := range newWorld {
@@ -82,16 +135,44 @@ func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uin
 	for y := startY; y < endY; y++ {
 		for x := startX; x < endX; x++ {
 			// Check how many of the current cell's neighbours are alive
-
 			currentCell := world[y][x]
-			neighboursAlive := (world[(y+h-1)%h][(x+w-1)%w] / 255) +
-				(world[(y+h-1)%h][(x+w)%w] / 255) +
-				(world[(y+h-1)%h][(x+w+1)%w] / 255) +
-				(world[(y+h)%h][(x+w-1)%w] / 255) +
-				(world[(y+h)%h][(x+w+1)%w] / 255) +
-				(world[(y+h+1)%h][(x+w-1)%w] / 255) +
-				(world[(y+h+1)%h][(x+w)%w] / 255) +
-				(world[(y+h+1)%h][(x+w+1)%w] / 255)
+			var aboveRow int
+			var belowRow int
+			var leftCol int
+			var rightCol int
+
+			// Setting values for neighbour locations manually.
+			switch y {
+			case 0:
+				aboveRow = worldEndY - 1
+				belowRow = y + 1
+			case worldEndY - 1:
+				aboveRow = y - 1
+				belowRow = 0
+			default:
+				aboveRow = y - 1
+				belowRow = y + 1
+			}
+			switch x {
+			case 0:
+				leftCol = worldEndX - 1
+				rightCol = x + 1
+			case worldEndX - 1:
+				leftCol = x - 1
+				rightCol = 0
+			default:
+				leftCol = x - 1
+				rightCol = x + 1
+			}
+
+			neighboursAlive := (world[aboveRow][leftCol] / 255) +
+				(world[aboveRow][x] / 255) +
+				(world[aboveRow][rightCol] / 255) +
+				(world[y][leftCol] / 255) +
+				(world[y][rightCol] / 255) +
+				(world[belowRow][leftCol] / 255) +
+				(world[belowRow][x] / 255) +
+				(world[belowRow][rightCol] / 255)
 
 			// Logic for current cell
 			var alive uint8 = 255
