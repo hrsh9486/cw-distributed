@@ -19,10 +19,12 @@ var loop = "GameOfLife.Loop"
 
 // var saver = "GameOfLife.Saver"
 // var quitter = "GameOfLife.Quitter"
-// var pauser = "GameOfLife.Pauser"
+var pauser = "GameOfLife.Pauser"
+
 // var killer = "GameOfLife.Killer"
 
 var mu sync.Mutex
+var cond = sync.NewCond(&mu)
 
 type Broker struct {
 }
@@ -30,9 +32,11 @@ type Broker struct {
 var globalWorkers []string
 var globalWorld [][]uint8
 var globalCompletedTurns int
+
 var globalAliveCells []util.Cell
 var globalThreads int
 var quitting bool
+var pausing bool
 
 func (broker Broker) RegisterWorker(request stubs.WorkerConnectionRequest, response *stubs.WorkerConnectionResponse) (err error) {
 	mu.Lock()
@@ -69,6 +73,12 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				upperBound = (i + 1) * sectionHeight
 			}
 
+			mu.Lock()
+			for pausing {
+				cond.Wait()
+			}
+			mu.Unlock()
+
 			wg.Add(1)
 			go func(i, upperBound int) {
 				defer wg.Done()
@@ -76,6 +86,9 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 				if err != nil {
 					fmt.Println(err)
 				}
+
+				// cond.Broadcast()
+
 				defer client.Close()
 				req := stubs.BrokerRequest{
 					StartY:          i * sectionHeight,
@@ -85,7 +98,9 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 					FullWorldHeight: fullWorldHeight,
 					FullWorldWidth:  fullWorldHeight,
 					Threads:         globalThreads,
-					BitMap:          stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth)}
+					BitMap:          stubs.Encode(globalWorld, fullWorldHeight, fullWorldWidth),
+					Pausing:         pausing,
+				}
 
 				responses[i] = new(stubs.BrokerResponse)
 				client.Call(loop, &req, &responses[i])
@@ -142,9 +157,9 @@ func (broker Broker) TickerService(request stubs.TickerRequest, response *stubs.
 
 func (broker Broker) Quitter(request stubs.ClientRequest, response *stubs.ClientResponse) (err error) {
 	mu.Lock()
+	cond.Broadcast()
+	pausing = false
 	quitting = true
-	mu.Unlock()
-	mu.Lock()
 	response.BitMap = stubs.Encode(globalWorld, request.EndY-request.StartY, request.EndX-request.StartX)
 	response.AliveCells = getAliveCells(request.EndY-request.StartY, request.EndX-request.StartX, globalWorld)
 	response.CompletedTurns = globalCompletedTurns
@@ -156,6 +171,18 @@ func (broker Broker) Saver(request stubs.SaverRequest, response *stubs.SaverResp
 	mu.Lock()
 	response.CompletedTurns = globalCompletedTurns
 	response.BitMap = stubs.Encode(globalWorld, len(globalWorld), len(globalWorld[0]))
+	mu.Unlock()
+	return
+}
+
+func (broker Broker) Pauser(request stubs.PauserRequest, response *stubs.PauserResponse) (err error) {
+	mu.Lock()
+	pausing = !pausing
+	response.CompletedTurns = globalCompletedTurns
+
+	if !pausing {
+		cond.Broadcast()
+	}
 	mu.Unlock()
 	return
 }

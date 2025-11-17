@@ -37,6 +37,7 @@ type BrokerRequest struct {
 	FullWorldWidth  int
 	BitMap          []byte
 	Threads         int
+	Pausing         bool
 }
 
 type BrokerResponse struct {

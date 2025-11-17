@@ -43,14 +43,15 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 				client.Call(brokerQuitter, request, response)
 
 			case 'p':
-				request := stubs.PauserRequest{}
 				response := new(stubs.PauserResponse)
-				client.Call(brokerPauser, request, response)
+				request := stubs.PauserRequest{}
 				if !isPaused {
 					isPaused = true
+					client.Call(brokerPauser, request, response)
 					c.events <- StateChange{response.CompletedTurns, Paused}
 				} else {
 					isPaused = false
+					client.Call(brokerPauser, request, response)
 					c.events <- StateChange{response.CompletedTurns, Executing}
 				}
 

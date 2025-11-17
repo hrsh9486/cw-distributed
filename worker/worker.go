@@ -17,9 +17,17 @@ type GameOfLife struct {
 }
 
 var quitting bool
+
 var pausing bool
-var mu sync.Mutex
+
+// var mu sync.Mutex
 var isKilled bool
+
+var mu sync.Mutex
+
+// var cond = sync.NewCond(&mu)
+
+// var globalTurn int
 
 // Calculate a certain number of game of life states
 func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
@@ -63,10 +71,11 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 
 }
 
-// func (Game GameOfLife) Pauser(request broker.PauserRequest, response *broker.PauserResponse) (err error) {
+// func (Game GameOfLife) Pauser(request stubs.PauserRequest, response *stubs.PauserResponse) (err error) {
+// 	fmt.Println("pauser is called")
 // 	mu.Lock()
 // 	pausing = !pausing
-// 	response.CompletedTurns = globalTurn
+// 	// response.CompletedTurns = globalTurn
 // 	mu.Unlock()
 // 	return
 // }
