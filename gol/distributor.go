@@ -121,7 +121,7 @@ func distributor(p Params, c distributorChannels) {
 	// TODO: Execute all turns of the Game of Life.
 	// server := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
 	// flag.Parse()
-	broker := "3.237.18.107"
+	broker := "44.197.192.43"
 	broker = "127.0.0.1"
 	port := "8030"
 	broker = broker + ":" + port

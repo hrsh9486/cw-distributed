@@ -73,16 +73,30 @@ func calculateNextState(sectionHeight int, world [][]uint8) [][]uint8 {
 	for y := 1; y < sectionHeight+1; y++ {
 		for x := 0; x < w; x++ {
 			// Check how many of the current cell's neighbours are alive
+			var leftCol int
+			var rightCol int
+
+			switch x {
+			case 0:
+				leftCol = w - 1
+				rightCol = x + 1
+			case w - 1:
+				leftCol = x - 1
+				rightCol = 0
+			default:
+				leftCol = x - 1
+				rightCol = x + 1
+			}
 
 			currentCell := world[y][x]
-			neighboursAlive := (world[y-1][(x+w-1)%w] / 255) +
-				(world[y-1][(x+w)%w] / 255) +
-				(world[y-1][(x+w+1)%w] / 255) +
-				(world[y][(x+w-1)%w] / 255) +
-				(world[y][(x+w+1)%w] / 255) +
-				(world[y+1][(x+w-1)%w] / 255) +
-				(world[y+1][(x+w)%w] / 255) +
-				(world[y+1][(x+w+1)%w] / 255)
+			neighboursAlive := (world[y-1][leftCol] / 255) +
+				(world[y-1][x] / 255) +
+				(world[y-1][rightCol] / 255) +
+				(world[y][leftCol] / 255) +
+				(world[y][rightCol] / 255) +
+				(world[y+1][leftCol] / 255) +
+				(world[y+1][x] / 255) +
+				(world[y+1][rightCol] / 255)
 
 			// Logic for current cell
 			var alive uint8 = 255
