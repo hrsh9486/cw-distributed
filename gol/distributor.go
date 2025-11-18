@@ -120,7 +120,7 @@ func distributor(p Params, c distributorChannels) {
 
 	// To run on AWS, we need to update this variable to the public IP address of the broker EC2 instance
 	broker := "127.0.0.1"
-	broker = "44.197.192.43"
+	// broker = "44.197.192.43"
 	port := "8030"
 	broker = broker + ":" + port
 

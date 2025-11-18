@@ -1,40 +1,14 @@
-# CSA Coursework: Game of Life (Go)
+Hello examiners!
 
-All documentation is available [here](https://uob-csa.github.io/gol-docs/)
+In order for you to run our program locally, please follow the steps provided below
 
-## Setup
+- Run ```go run broker/broker.go -remote 1```
+- Run ``` go run worker/worker.go -remote 1```
+- For any subsequent workers that you run, please include the ```-remote 1``` flag, and also specify the ```-port``` flag (default port for the first worker is 8030)
+- The ```-remote``` flag is used to configure our main broker and worker functions to run on a local machine, since, to work on a AWS machine, we have configured them to use AWS private IPs, which can only be accessed if on an EC2 instance.
 
-### Create Virtual Environment
-```bash
-python3 -m venv venv
-```
+- Once you have broker and worker running, you can run ```go run .```
 
-### Activate Virtual Environment
-```bash
-source venv/bin/activate
-```
 
-### Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-## Running Benchmarks
-
-### 1. Run the benchmark tests
-*Note: You may need to delete `results.out` and `results.csv` first*
-```bash
-go test -run ^$ -bench . -benchtime 1x -count 6 | tee results.out
-```
-
-### 2. Generate CSV from results
-```bash
-go run golang.org/x/perf/cmd/benchstat -format csv results.out | tee results.csv
-```
-
-### 3. Plot the data
-```bash
-python3 plot.py
-```
-
-The output image will be saved as `benchmark_data.png`
+Many thanks,<br>
+Harish and Rishi
