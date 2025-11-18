@@ -122,7 +122,7 @@ func distributor(p Params, c distributorChannels) {
 	// server := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
 	// flag.Parse()
 	broker := "44.197.192.43"
-	broker = "127.0.0.1"
+	// broker = "127.0.0.1"
 	port := "8030"
 	broker = broker + ":" + port
 

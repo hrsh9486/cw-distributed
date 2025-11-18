@@ -18,7 +18,7 @@ func BenchmarkGol(b *testing.B) {
 		ImageWidth:  512,
 		ImageHeight: 512,
 	}
-	name := fmt.Sprintf("DistributedMultithread-%dx%dx%d-8", p.ImageWidth, p.ImageHeight, p.Turns)
+	name := fmt.Sprintf("DistributedMultithread-%dx%dx%d-6", p.ImageWidth, p.ImageHeight, p.Turns)
 	b.Run(name, func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			os.Stdout = nil
