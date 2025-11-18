@@ -35,27 +35,6 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 
 }
 
-// func (Game GameOfLife) Pauser(request broker.PauserRequest, response *broker.PauserResponse) (err error) {
-// 	mu.Lock()
-// 	pausing = !pausing
-// 	response.CompletedTurns = globalTurn
-// 	mu.Unlock()
-// 	return
-// }
-
-// func (Game GameOfLife) Saver(request broker.SaverRequest, response *broker.SaverResponse) (err error) {
-// 	mu.Lock()
-// 	response.CompletedTurns = globalTurn
-// 	response.World = globalWorld
-// 	mu.Unlock()
-// 	return
-// }
-
-// func (Game GameOfLife) Killer(request broker.KillerRequest, response *broker.KillerResponse) (err error) {
-// 	isKilled = true
-// 	return
-// }
-
 func worker(sectionHeight int, world [][]uint8, outputChan chan [][]uint8) {
 	outputChan <- calculateNextState(sectionHeight, world)
 }

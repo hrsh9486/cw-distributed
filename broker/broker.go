@@ -17,11 +17,6 @@ import (
 // Functions to be called by the broker to access worker methods
 var loop = "GameOfLife.Loop"
 
-// var saver = "GameOfLife.Saver"
-// var quitter = "GameOfLife.Quitter"
-// var pauser = "GameOfLife.Pauser"
-// var killer = "GameOfLife.Killer"
-
 var mu sync.Mutex
 
 type Broker struct {

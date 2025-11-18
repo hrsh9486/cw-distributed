@@ -54,7 +54,6 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 					c.events <- StateChange{response.CompletedTurns, Executing}
 				}
 
-				// Need to add something here to deal with logic on client side
 			case 's':
 				request := stubs.SaverRequest{}
 				response := new(stubs.SaverResponse)
@@ -73,7 +72,6 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 				<-c.ioIdle
 				c.events <- ImageOutputComplete{response.CompletedTurns, outputFileName}
 
-				// Need to add something here to deal with logic on client side
 			case 'k':
 				request := stubs.BrokerRequest{StartY: 0, EndY: h, StartX: 0, EndX: w}
 				response := new(stubs.BrokerResponse)
@@ -83,8 +81,6 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 			return
 		}
 	}
-	// call the ticker every 2 seconds
-	// use the rpc ticker thingy
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
@@ -118,9 +114,6 @@ func distributor(p Params, c distributorChannels) {
 	ticker := time.NewTicker(2 * time.Second)
 
 	c.events <- StateChange{0, Executing}
-	// TODO: Execute all turns of the Game of Life.
-	// server := flag.String("server", "127.0.0.1:8030", "IP:port string to connect to as server")
-	// flag.Parse()
 	broker := "44.197.192.43"
 	// broker = "127.0.0.1"
 	port := "8030"
