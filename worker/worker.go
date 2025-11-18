@@ -24,10 +24,6 @@ func (Game GameOfLife) Killer(request stubs.WorkerConnectionRequest, response *s
 
 // Calculate a certain number of game of life states
 func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerResponse) (err error) {
-	// quitting = false
-	// pausing = false
-	// isKilled = false
-	// turn := 0
 	world := stubs.Decode(request.BitMap, request.FullWorldHeight, request.FullWorldWidth)
 
 	threads := request.Threads
@@ -67,59 +63,6 @@ func (Game GameOfLife) Loop(request stubs.BrokerRequest, response *stubs.BrokerR
 func worker(startY, endY, startX, endX int, world [][]uint8, outputChan chan [][]uint8) {
 	outputChan <- calculateNextState(startY, endY, startX, endX, world)
 }
-
-// // Take a broker state and iteratively calculate the next state for a section of the board
-// func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uint8 {
-// 	w := len(world[0])
-// 	h := len(world)
-// 	newWorld := make([][]uint8, endY-startY)
-
-// 	// Populate outer slice, with empty inner slices.
-// 	for i := range newWorld {
-// 		newWorld[i] = make([]uint8, w)
-// 	}
-
-// 	for y := startY; y < endY; y++ {
-// 		for x := startX; x < endX; x++ {
-// 			// Check how many of the current cell's neighbours are alive
-
-// 			currentCell := world[y][x]
-// 			neighboursAlive := (world[(y+h-1)%h][(x+w-1)%w] / 255) +
-// 				(world[(y+h-1)%h][(x+w)%w] / 255) +
-// 				(world[(y+h-1)%h][(x+w+1)%w] / 255) +
-// 				(world[(y+h)%h][(x+w-1)%w] / 255) +
-// 				(world[(y+h)%h][(x+w+1)%w] / 255) +
-// 				(world[(y+h+1)%h][(x+w-1)%w] / 255) +
-// 				(world[(y+h+1)%h][(x+w)%w] / 255) +
-// 				(world[(y+h+1)%h][(x+w+1)%w] / 255)
-
-// 			// Logic for current cell
-// 			var alive uint8 = 255
-// 			var dead uint8 = 0
-// 			offsetY := y - startY
-// 			offsetX := x - startX
-
-// 			if currentCell == alive {
-// 				if neighboursAlive < 2 {
-// 					newWorld[offsetY][offsetX] = dead
-// 				} else if neighboursAlive > 3 {
-// 					newWorld[offsetY][offsetX] = dead
-// 				} else if neighboursAlive == 2 || neighboursAlive == 3 {
-// 					newWorld[offsetY][offsetX] = currentCell
-
-// 				}
-// 			} else {
-// 				if neighboursAlive == 3 {
-// 					newWorld[offsetY][offsetX] = alive
-// 				} else {
-// 					newWorld[offsetY][offsetX] = currentCell
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	return newWorld
-// }
 
 func calculateNextState(startY, endY, startX, endX int, world [][]uint8) [][]uint8 {
 	w := endX - startX

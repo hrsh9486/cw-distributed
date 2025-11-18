@@ -17,12 +17,6 @@ import (
 // Functions to be called by the broker to access worker methods
 var loop = "GameOfLife.Loop"
 
-// var saver = "GameOfLife.Saver"
-// var quitter = "GameOfLife.Quitter"
-var pauser = "GameOfLife.Pauser"
-
-// var killer = "GameOfLife.Killer"
-
 var mu sync.Mutex
 var cond = sync.NewCond(&mu)
 
@@ -69,9 +63,6 @@ func (broker Broker) ScheduleWork(request *stubs.ClientRequest, response *stubs.
 		if err != nil {
 			fmt.Println(err)
 		}
-
-		// cond.Broadcast()
-
 		defer client.Close()
 		mu.Lock()
 		clients[i] = client

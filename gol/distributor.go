@@ -84,8 +84,6 @@ func handleTicker(ticker *time.Ticker, done chan bool, client *rpc.Client, c dis
 			return
 		}
 	}
-	// call the ticker every 2 seconds
-	// use the rpc ticker thingy
 }
 
 // distributor divides the work between workers and interacts with other goroutines.
